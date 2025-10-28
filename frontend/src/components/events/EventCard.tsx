@@ -1,0 +1,99 @@
+import { Link } from "react-router-dom";
+import { Calendar, MapPin, Users } from "lucide-react";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import eventPlaceholder from "@/assets/event-placeholder.jpg";
+
+interface EventCardProps {
+  id: string;
+  title: string;
+  category: string;
+  date: string;
+  time: string;
+  location: string;
+  capacity: number;
+  registered: number;
+  image?: string;
+}
+
+const EventCard = ({
+  id,
+  title,
+  category,
+  date,
+  time,
+  location,
+  capacity,
+  registered,
+  image,
+}: EventCardProps) => {
+  const spotsLeft = capacity - registered;
+  
+  const getCategoryColor = (cat: string) => {
+    switch (cat.toLowerCase()) {
+      case "académico":
+        return "bg-accent/20 text-accent-foreground";
+      case "deportivo":
+        return "bg-secondary/20 text-secondary-foreground";
+      case "cultural":
+        return "bg-primary/20 text-primary";
+      case "social":
+        return "bg-amber-500/20 text-amber-700";
+      default:
+        return "bg-muted text-muted-foreground";
+    }
+  };
+
+  return (
+    <Card className="overflow-hidden hover:shadow-soft transition-base group">
+      <div className="relative h-48 overflow-hidden">
+        <img
+          src={image || eventPlaceholder}
+          alt={title}
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+        />
+        <Badge className={`absolute top-3 right-3 ${getCategoryColor(category)}`}>
+          {category}
+        </Badge>
+      </div>
+      
+      <CardHeader>
+        <h3 className="text-xl font-semibold line-clamp-2 group-hover:text-primary transition-base">
+          {title}
+        </h3>
+      </CardHeader>
+      
+      <CardContent className="space-y-3">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Calendar className="h-4 w-4 text-primary" />
+          <span>{date} • {time}</span>
+        </div>
+        
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <MapPin className="h-4 w-4 text-primary" />
+          <span className="line-clamp-1">{location}</span>
+        </div>
+        
+        <div className="flex items-center gap-2 text-sm">
+          <Users className="h-4 w-4 text-primary" />
+          <span className="font-medium text-foreground">
+            {spotsLeft > 0 ? (
+              <span className="text-primary">{spotsLeft} cupos disponibles</span>
+            ) : (
+              <span className="text-destructive">Evento lleno</span>
+            )}
+          </span>
+        </div>
+      </CardContent>
+      
+      <CardFooter>
+        <Button asChild className="w-full gradient-primary text-white border-0">
+          <Link to={`/event/${id}`}>Ver detalles</Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
+export default EventCard;
