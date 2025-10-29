@@ -1,0 +1,10 @@
+django==5.2.7
+djangorestframework==3.16.1
+django-cors-headers==4.9.0
+django-filter==24.3
+asgiref==3.10.0
+sqlparse==0.5.3
+graphene-django
+tzdata==2025.2
+drf-spectacular==0.28.0
+coreapi
