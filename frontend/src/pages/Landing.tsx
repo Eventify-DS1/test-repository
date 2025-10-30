@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Calendar, Users, Sparkles, ArrowRight, Bell, MessageSquare, Star as StarIcon, Search, Zap, Target, TrendingUp } from "lucide-react";
+import { Calendar, Users, Sparkles, ArrowRight, Bell, MessageSquare, Star as StarIcon, Search, Zap, Target, TrendingUp, Music, Moon, Drama, Plane, Heart, Gamepad2, Briefcase, UtensilsCrossed } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import EventCard from "@/components/events/EventCard";
@@ -9,7 +9,6 @@ import { useScrollReveal } from "@/hooks/use-scroll-reveal";
 import { AnimatedCounter, AnimatedTitle, StaggeredCards } from "@/components/animations";
 import heroImage from "@/assets/hero-image.jpg";
 import studentsCollaboration from "@/assets/students-collaboration.jpg";
-import campusEvent from "@/assets/campus-event.jpg";
 
 const ScrollRevealSection = ({ children, className = "", direction = "up" }: { 
   children: React.ReactNode; 
@@ -44,94 +43,91 @@ const Landing = () => {
     <div className="min-h-screen flex flex-col">
       <Header />
       
-      {/* Hero Section */}
-      <section className="relative overflow-hidden gradient-hero min-h-[700px] flex items-center">
+      {/* Hero Section - Full Screen Invasive */}
+      <section className="relative min-h-screen w-full overflow-hidden flex items-center py-20">
+        {/* Background Image with Overlay */}
         <div className="absolute inset-0">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-primary/20 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-20 right-10 w-96 h-96 bg-secondary/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-          <div className="absolute top-1/2 left-1/2 w-80 h-80 bg-accent/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '0.5s' }} />
+          <img
+            src={heroImage}
+            alt="Eventos Universitarios"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/80" />
         </div>
         
-        <div className="container py-20 md:py-28 relative z-10">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8 animate-slide-in-left">
-              <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-white shadow-soft animate-bounce-in">
-                <Sparkles className="h-5 w-5 text-primary animate-pulse" />
-                <span className="text-sm font-bold bg-gradient-primary bg-clip-text text-transparent">
-                  #1 Plataforma Universitaria
-                </span>
-              </div>
-              
-              <AnimatedTitle 
-                text="Descubre los mejores eventos universitarios"
-                className="text-5xl md:text-6xl font-extrabold leading-tight bg-gradient-accent bg-clip-text text-transparent"
-              />
-              
-              <p className="text-xl md:text-2xl text-foreground/80 leading-relaxed font-medium">
-                Únete, crea y disfruta de experiencias increíbles en tu campus
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <Button 
-                  size="lg" 
-                  asChild 
-                  className="gradient-primary text-white text-lg px-8 py-6 border-0 hover-glow hover:scale-105 transition-bounce shadow-soft"
-                >
-                  <Link to="/eventos">
-                    <Search className="mr-2 h-5 w-5" />
-                    Explorar Eventos
-                  </Link>
-                </Button>
-                
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  asChild
-                  className="text-lg px-8 py-6 border-2 border-primary bg-white text-primary hover:bg-primary hover:text-white transition-bounce"
-                >
-                  <Link to="/calendario">
-                    <Calendar className="mr-2 h-5 w-5" />
-                    Ver Calendario
-                  </Link>
-                </Button>
-              </div>
-              
-              <div className="flex gap-8 pt-6">
-                <div className="space-y-1 animate-fade-in" style={{ animationDelay: '0.3s' }}>
-                  <div className="flex items-center gap-2">
-                    <AnimatedCounter 
-                      end={500}
-                      suffix="+"
-                      className="text-4xl md:text-5xl font-extrabold bg-gradient-primary bg-clip-text text-transparent"
-                    />
-                    <TrendingUp className="h-6 w-6 text-accent" />
-                  </div>
-                  <div className="text-sm font-medium text-foreground/70">Eventos creados</div>
-                </div>
-                <div className="space-y-1 animate-fade-in" style={{ animationDelay: '0.4s' }}>
-                  <div className="flex items-center gap-2">
-                    <AnimatedCounter 
-                      end={2000}
-                      suffix="+"
-                      className="text-4xl md:text-5xl font-extrabold bg-gradient-secondary bg-clip-text text-transparent"
-                    />
-                    <StarIcon className="h-6 w-6 text-accent animate-pulse" />
-                  </div>
-                  <div className="text-sm font-medium text-foreground/70">Estudiantes activos</div>
-                </div>
-              </div>
+        {/* Content Centered */}
+        <div className="relative z-10 w-full flex flex-col items-center justify-center text-center px-4 py-16">
+          <div className="max-w-5xl space-y-6 animate-fade-in">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 animate-bounce-in">
+              <Sparkles className="h-4 w-4 text-white animate-pulse" />
+              <span className="text-xs font-bold text-white">
+                #1 PLATAFORMA UNIVERSITARIA
+              </span>
             </div>
             
-            <div className="relative animate-slide-in-right">
-              <div className="absolute -inset-8 gradient-primary opacity-30 blur-3xl rounded-full animate-pulse" />
-              <div className="relative rounded-3xl overflow-hidden shadow-glow border-4 border-white hover-lift">
-                <img
-                  src={heroImage}
-                  alt="Estudiantes en eventos universitarios"
-                  className="w-full animate-scale-in"
-                />
+            {/* Main Title */}
+            <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white leading-none tracking-tight drop-shadow-2xl animate-slide-in-left">
+              VIVE LA
+              <br />
+              <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+                EXPERIENCIA
+              </span>
+            </h1>
+            
+            {/* Subtitle */}
+            <p className="text-lg md:text-2xl text-white/90 font-medium max-w-3xl mx-auto leading-relaxed drop-shadow-lg animate-slide-in-right">
+              Descubre, crea y participa en los mejores eventos de tu campus.
+              <br className="hidden md:block" />
+              Tu comunidad universitaria te espera.
+            </p>
+            
+            {/* CTA Button */}
+            <div className="pt-4 animate-bounce-in" style={{ animationDelay: '0.3s' }}>
+              <Button 
+                size="lg" 
+                asChild 
+                className="gradient-primary text-white text-lg px-12 py-6 h-auto border-0 hover-glow hover:scale-110 transition-all duration-300 shadow-2xl font-bold"
+              >
+                <Link to="/eventos">
+                  EXPLORAR EVENTOS
+                  <ArrowRight className="ml-2 h-6 w-6" />
+                </Link>
+              </Button>
+            </div>
+            
+            {/* Stats */}
+            <div className="flex flex-wrap gap-8 md:gap-16 justify-center pt-8 pb-8 animate-fade-in" style={{ animationDelay: '0.5s' }}>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <AnimatedCounter 
+                    end={500}
+                    suffix="+"
+                    className="text-4xl md:text-5xl font-extrabold text-white drop-shadow-lg"
+                  />
+                  <TrendingUp className="h-6 w-6 md:h-7 md:w-7 text-accent" />
+                </div>
+                <div className="text-white/80 font-medium text-base md:text-lg">Eventos</div>
+              </div>
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <AnimatedCounter 
+                    end={2000}
+                    suffix="+"
+                    className="text-4xl md:text-5xl font-extrabold text-white drop-shadow-lg"
+                  />
+                  <StarIcon className="h-6 w-6 md:h-7 md:w-7 text-accent" />
+                </div>
+                <div className="text-white/80 font-medium text-base md:text-lg">Estudiantes</div>
               </div>
             </div>
+          </div>
+        </div>
+        
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 animate-bounce">
+          <div className="w-5 h-9 border-2 border-white/40 rounded-full flex justify-center">
+            <div className="w-1 h-2 bg-white/60 rounded-full mt-2 animate-pulse" />
           </div>
         </div>
       </section>
@@ -139,10 +135,10 @@ const Landing = () => {
       {/* Stats Section */}
       <section className="py-16 bg-background">
         <div className="container">
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-6 mb-16">
             <ScrollRevealSection direction="scale">
-              <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift gradient-primary">
-                <Calendar className="h-16 w-16 mx-auto mb-4 text-white animate-float" />
+              <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift gradient-primary shadow-xl">
+                <Calendar className="h-14 w-14 mx-auto mb-4 text-white animate-float" />
                 <AnimatedCounter 
                   end={48}
                   className="text-5xl font-extrabold text-white mb-2"
@@ -152,8 +148,8 @@ const Landing = () => {
             </ScrollRevealSection>
             
             <ScrollRevealSection direction="scale">
-              <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift" style={{ background: 'linear-gradient(135deg, hsl(260 75% 60%) 0%, hsl(270 70% 65%) 100%)' }}>
-                <Users className="h-16 w-16 mx-auto mb-4 text-white animate-float" style={{ animationDelay: '0.5s' }} />
+              <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift shadow-xl" style={{ background: 'linear-gradient(135deg, hsl(260 75% 60%) 0%, hsl(270 70% 65%) 100%)' }}>
+                <Users className="h-14 w-14 mx-auto mb-4 text-white animate-float" style={{ animationDelay: '0.5s' }} />
                 <AnimatedCounter 
                   end={576}
                   suffix="+"
@@ -164,14 +160,101 @@ const Landing = () => {
             </ScrollRevealSection>
             
             <ScrollRevealSection direction="scale">
-              <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift" style={{ background: 'linear-gradient(135deg, hsl(160 75% 50%) 0%, hsl(170 70% 55%) 100%)' }}>
-                <Zap className="h-16 w-16 mx-auto mb-4 text-white animate-float" style={{ animationDelay: '1s' }} />
+              <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift shadow-xl" style={{ background: 'linear-gradient(135deg, hsl(160 75% 50%) 0%, hsl(170 70% 55%) 100%)' }}>
+                <Zap className="h-14 w-14 mx-auto mb-4 text-white animate-float" style={{ animationDelay: '1s' }} />
                 <AnimatedCounter 
                   end={6}
                   className="text-5xl font-extrabold text-white mb-2"
                   duration={1500}
                 />
                 <div className="text-lg text-white/90 font-medium">Categorías disponibles</div>
+              </div>
+            </ScrollRevealSection>
+          </div>
+
+          {/* Categories Section */}
+          <ScrollRevealSection>
+            <div className="text-center mb-10">
+              <h3 className="text-2xl md:text-3xl font-extrabold text-foreground mb-2">
+                Explora por{" "}
+                <span className="bg-gradient-primary bg-clip-text text-transparent">
+                  Categoría
+                </span>
+              </h3>
+              <p className="text-base text-foreground/70">Encuentra eventos que se adapten a tus intereses</p>
+            </div>
+          </ScrollRevealSection>
+
+          <div className="flex flex-wrap justify-center gap-6 md:gap-10">
+            <ScrollRevealSection direction="scale">
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-primary/20 group-hover:border-primary">
+                  <Music className="h-8 w-8 text-primary" />
+                </div>
+                <span className="text-xs font-semibold text-foreground/80 group-hover:text-primary transition-colors">Música</span>
+              </div>
+            </ScrollRevealSection>
+
+            <ScrollRevealSection direction="scale">
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-secondary/20 to-secondary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-secondary/20 group-hover:border-secondary">
+                  <Moon className="h-8 w-8 text-secondary" />
+                </div>
+                <span className="text-xs font-semibold text-foreground/80 group-hover:text-secondary transition-colors">Vida nocturna</span>
+              </div>
+            </ScrollRevealSection>
+
+            <ScrollRevealSection direction="scale">
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-accent/20 to-accent/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-accent/20 group-hover:border-accent">
+                  <Drama className="h-8 w-8 text-accent" />
+                </div>
+                <span className="text-xs font-semibold text-foreground/80 group-hover:text-accent transition-colors">Artes escénicas</span>
+              </div>
+            </ScrollRevealSection>
+
+            <ScrollRevealSection direction="scale">
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-primary/20 group-hover:border-primary">
+                  <Plane className="h-8 w-8 text-primary" />
+                </div>
+                <span className="text-xs font-semibold text-foreground/80 group-hover:text-primary transition-colors">Vacaciones</span>
+              </div>
+            </ScrollRevealSection>
+
+            <ScrollRevealSection direction="scale">
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-secondary/20 to-secondary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-secondary/20 group-hover:border-secondary">
+                  <Heart className="h-8 w-8 text-secondary" />
+                </div>
+                <span className="text-xs font-semibold text-foreground/80 group-hover:text-secondary transition-colors">Citas</span>
+              </div>
+            </ScrollRevealSection>
+
+            <ScrollRevealSection direction="scale">
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-accent/20 to-accent/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-accent/20 group-hover:border-accent">
+                  <Gamepad2 className="h-8 w-8 text-accent" />
+                </div>
+                <span className="text-xs font-semibold text-foreground/80 group-hover:text-accent transition-colors">Aficiones</span>
+              </div>
+            </ScrollRevealSection>
+
+            <ScrollRevealSection direction="scale">
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-primary/20 group-hover:border-primary">
+                  <Briefcase className="h-8 w-8 text-primary" />
+                </div>
+                <span className="text-xs font-semibold text-foreground/80 group-hover:text-primary transition-colors">Negocios</span>
+              </div>
+            </ScrollRevealSection>
+
+            <ScrollRevealSection direction="scale">
+              <div className="flex flex-col items-center group cursor-pointer">
+                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-secondary/20 to-secondary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-secondary/20 group-hover:border-secondary">
+                  <UtensilsCrossed className="h-8 w-8 text-secondary" />
+                </div>
+                <span className="text-xs font-semibold text-foreground/80 group-hover:text-secondary transition-colors">Gastronomía</span>
               </div>
             </ScrollRevealSection>
           </div>
@@ -366,108 +449,6 @@ const Landing = () => {
               </div>
             </ScrollRevealSection>
           </div>
-        </div>
-      </section>
-
-      {/* Testimonial Section with Image */}
-      <section className="py-24 bg-background relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-0 left-0 w-full h-full bg-gradient-primary" />
-        </div>
-        
-        <div className="container relative z-10">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <ScrollRevealSection direction="left">
-              <div className="space-y-8">
-                <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-primary/10">
-                  <Sparkles className="h-5 w-5 text-primary animate-pulse" />
-                  <span className="text-sm font-bold text-primary">Vive la Experiencia</span>
-                </div>
-                
-                <blockquote className="text-3xl md:text-4xl font-bold leading-relaxed text-foreground">
-                  "La vida universitaria no se trata solo de estudiar,{" "}
-                  <span className="bg-gradient-primary bg-clip-text text-transparent">
-                    se trata de crear conexiones
-                  </span>
-                  , vivir experiencias y construir recuerdos inolvidables."
-                </blockquote>
-                
-                <div className="flex gap-4 pt-4">
-                  <Button size="lg" asChild className="gradient-primary text-white border-0 hover-glow">
-                    <Link to="/eventos">Explorar eventos</Link>
-                  </Button>
-                </div>
-              </div>
-            </ScrollRevealSection>
-            
-            <ScrollRevealSection direction="right">
-              <div className="relative">
-                <div className="absolute -inset-4 bg-gradient-accent opacity-20 blur-2xl rounded-3xl" />
-                <div className="relative rounded-3xl overflow-hidden shadow-glow border-4 border-primary/20">
-                  <img 
-                    src={campusEvent} 
-                    alt="Evento en el campus universitario" 
-                    className="w-full h-[400px] object-cover"
-                  />
-                </div>
-              </div>
-            </ScrollRevealSection>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-24 relative overflow-hidden gradient-hero">
-        <div className="absolute top-10 left-20 w-64 h-64 bg-primary/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-10 right-20 w-80 h-80 bg-secondary/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-        
-        <div className="container relative z-10">
-          <ScrollRevealSection direction="scale">
-            <div className="max-w-4xl mx-auto text-center space-y-8">
-              <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full gradient-primary shadow-glow">
-                <Sparkles className="h-5 w-5 text-white animate-pulse" />
-                <span className="text-sm font-bold text-white">¡Únete ahora!</span>
-              </div>
-              
-              <h2 className="text-5xl md:text-6xl font-extrabold leading-tight text-foreground">
-                ¿Listo para vivir{" "}
-                <span className="bg-gradient-primary bg-clip-text text-transparent">
-                  la mejor experiencia
-                </span>
-                ?
-              </h2>
-              
-              <p className="text-2xl text-foreground/70 font-medium max-w-2xl mx-auto">
-                Únete a cientos de estudiantes que ya están disfrutando de la vida universitaria al máximo.
-              </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-                <Button 
-                  size="lg" 
-                  asChild 
-                  className="gradient-primary text-white text-xl px-12 py-7 border-0 hover-glow hover:scale-105 transition-bounce shadow-soft"
-                >
-                  <Link to="/dashboard">
-                    Comienza gratis hoy
-                    <ArrowRight className="ml-2 h-6 w-6" />
-                  </Link>
-                </Button>
-                
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  asChild
-                  className="text-xl px-12 py-7 border-2 border-primary bg-white text-primary hover:bg-primary hover:text-white transition-bounce"
-                >
-                  <Link to="/eventos">Explorar eventos</Link>
-                </Button>
-              </div>
-              
-              <p className="text-sm text-foreground/60">
-                ✨ Sin costo • Sin tarjeta de crédito • Acceso inmediato
-              </p>
-            </div>
-          </ScrollRevealSection>
         </div>
       </section>
 
