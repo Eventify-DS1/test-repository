@@ -25,6 +25,7 @@ class Evento(models.Model):
     aforo = models.PositiveIntegerField()
     ubicacion = models.CharField(max_length=200)
     foto = models.ImageField(upload_to='eventos/', null=True, blank=True)
+    asistentes = models.ManyToManyField(Usuario, through='Inscripcion', related_name='eventos_asistidos')
 
     # Relaciones
     organizador = models.ForeignKey(
