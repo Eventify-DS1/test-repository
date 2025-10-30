@@ -19,7 +19,7 @@ class EventoViewSet(viewsets.ModelViewSet):
     """
     ViewSet para el modelo Evento.
     - Solo usuarios autenticados pueden crear eventos.
-    - El organizador se asigna automáticamente en perform_create().
+    - El organizador se asigna automáticamente en perform_create(). Mi bombo
     """
     queryset = Evento.objects.all()
     serializer_class = EventoSerializer
