@@ -18,7 +18,7 @@ class CategoriaEvento(models.Model):
         return self.nombre
 
 class Evento(models.Model):
-    titulo = models.CharField(max_length=200)
+    titulo = models.CharField(max_length=210)
     descripcion = models.TextField()
     fecha_inicio = models.DateTimeField()
     fecha_fin = models.DateTimeField()
@@ -55,7 +55,7 @@ class Evento(models.Model):
             raise ValidationError("La fecha de fin no puede ser anterior a la fecha de inicio.")
         # Evitar eventos en el pasado
         if self.fecha_inicio < timezone.now():
-            raise ValidationError("No se pueden crear eventos en el pasado.")
+            raise ValidationError("No se pueden crear eventos en el pasado. Adelantala.")
 
     # Método útil para lógica de inscripción
     def tiene_cupos_disponibles(self):

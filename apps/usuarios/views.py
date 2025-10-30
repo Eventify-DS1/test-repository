@@ -14,7 +14,7 @@ class RolViewSet(viewsets.ModelViewSet):
     """
     queryset = Rol.objects.all()
     serializer_class = RolSerializer
-    permission_classes = [IsAuthenticated]  # Solo usuarios autenticados pueden modificar roles
+    #permission_classes = [IsAuthenticated]  # Solo usuarios autenticados pueden modificar roles
 
 
 class UsuarioViewSet(viewsets.ModelViewSet):

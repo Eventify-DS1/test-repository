@@ -28,7 +28,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
     )
 
     # Campo para asignar el rol mediante su ID (solo escritura)
-    rol_id = serializers.PrimaryKeyRelatedField(
+    rol = serializers.PrimaryKeyRelatedField(
         queryset=Rol.objects.all(),
         write_only=True
     )
@@ -47,7 +47,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
     )
 
     # Rol anidado (solo lectura)
-    rol = RolSerializer(read_only=True)
+    rol_data = RolSerializer(read_only=True)
 
     class Meta:
         model = Usuario
@@ -62,7 +62,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
             'foto',
             'estado_cuenta',
             'rol',
-            'rol_id',
+            'rol_data',
             'password',
             'password2'
         ]

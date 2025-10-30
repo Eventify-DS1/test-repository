@@ -12,7 +12,7 @@ class CategoriaEventoViewSet(viewsets.ModelViewSet):
     """
     queryset = CategoriaEvento.objects.all()
     serializer_class = CategoriaEventoSerializer
-    permission_classes = [IsAuthenticated]
+    #permission_classes = [IsAuthenticated]
 
 
 class EventoViewSet(viewsets.ModelViewSet):
@@ -23,19 +23,25 @@ class EventoViewSet(viewsets.ModelViewSet):
     """
     queryset = Evento.objects.all()
     serializer_class = EventoSerializer
-    permission_classes = [IsAuthenticated]
+    #permission_classes = [IsAuthenticated]
+
+    
+    """
 
     def perform_create(self, serializer):
-        """
+        
         Asigna automáticamente el organizador (usuario autenticado)
         antes de guardar el evento.
-        """
+        Cuando tengamos hecho la autenticacion, descomentar el metodo
+        
         serializer.save(organizador=self.request.user)
 
+        
+    Cuando tengamos hecho la autenticacion, descomentar el metodo
     def create(self, request, *args, **kwargs):
-        """
+        
         Personaliza la respuesta tras crear un evento.
-        """
+        
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
@@ -48,3 +54,4 @@ class EventoViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
             headers=headers
         )
+        """

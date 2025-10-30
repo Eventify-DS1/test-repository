@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.utils import timezone
 from .models import Evento, CategoriaEvento
+from apps.usuarios.models import Usuario
 
 class CategoriaEventoSerializer(serializers.ModelSerializer):
     """
@@ -35,8 +36,13 @@ class EventoSerializer(serializers.ModelSerializer):
         write_only=True
     )
 
+    """
+    Cuando tengamos hecho la autenticacion, descomentar el campo de solo lectura
     # Campo de solo lectura: muestra el nombre del organizador (relación con Usuario)
     organizador = serializers.StringRelatedField(read_only=True)
+    """
+        
+    organizador = serializers.PrimaryKeyRelatedField(queryset=Usuario.objects.all())
 
     """
     Se puede también mandando toda la info del organizador
@@ -83,12 +89,17 @@ class EventoSerializer(serializers.ModelSerializer):
         return attrs
 
     # === Creación personalizada ===
+    """
+    Cuando tengamos hecho la autenticacion, descomentar el metodo
     def create(self, validated_data):
-        """
+        
         Crea un evento asignando automáticamente el organizador
         a partir del usuario autenticado en el contexto de la petición.
-        """
+        
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             validated_data['organizador'] = request.user
         return Evento.objects.create(**validated_data)
+
+    """
+    
