@@ -102,4 +102,31 @@ class EventoSerializer(serializers.ModelSerializer):
         return Evento.objects.create(**validated_data)
 
     """
-    
+
+    # ==========================================================
+    # Si hay sesión, probar con lo siguiente:
+    #
+    # 1) Marcar el organizador como solo lectura (no enviarlo en el payload)
+    # 2) Forzar en create() que se tome del request.user autenticado
+    #
+    # Para activarlo, comenta el campo actual de "organizador" y descomenta
+    # las líneas siguientes. No olvides exigir autenticación en la vista.
+    #
+    # organizador = serializers.StringRelatedField(read_only=True)
+    #
+    # def create(self, validated_data):
+    #     request = self.context.get('request')
+    #     if not request or not getattr(request.user, 'is_authenticated', False):
+    #         raise serializers.ValidationError({
+    #             'detail': 'Debe estar autenticado para crear eventos sin enviar organizador.'
+    #         })
+    #     validated_data['organizador'] = request.user
+    #     return Evento.objects.create(**validated_data)
+    #
+    # Alternativa en la vista (perform_create):
+    #
+    # class EventoViewSet(viewsets.ModelViewSet):
+    #     permission_classes = [IsAuthenticated]
+    #     def perform_create(self, serializer):
+    #         serializer.save(organizador=self.request.user)
+    # ==========================================================

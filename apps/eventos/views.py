@@ -27,16 +27,18 @@ class EventoViewSet(viewsets.ModelViewSet):
 
     
     """
+    Cuando tengamos hecho la autenticacion, descomentar el metodo para obtener el organizador del solicitante
 
     def perform_create(self, serializer):
         
         Asigna automáticamente el organizador (usuario autenticado)
         antes de guardar el evento.
-        Cuando tengamos hecho la autenticacion, descomentar el metodo
+        
         
         serializer.save(organizador=self.request.user)
+    """
 
-        
+    """
     Cuando tengamos hecho la autenticacion, descomentar el metodo
     def create(self, request, *args, **kwargs):
         
