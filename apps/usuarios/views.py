@@ -16,6 +16,14 @@ class RolViewSet(viewsets.ModelViewSet):
     serializer_class = RolSerializer
     #permission_classes = [IsAuthenticated]  # Solo usuarios autenticados pueden modificar roles
 
+    filterset_fields = ['nombre']
+
+    # Buscar roles por nombre (coincidencia parcial)
+    search_fields = ['nombre']
+
+    # Ordenar resultados
+    ordering_fields = ['nombre']
+    ordering = ['nombre']
 
 class UsuarioViewSet(viewsets.ModelViewSet):
     """
@@ -26,6 +34,16 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
 
+    filterset_fields = ['rol', 'estado_cuenta', 'facultad', 'carrera']
+
+    # Buscar por nombre, username o email
+    search_fields = ['username', 'first_name', 'last_name', 'email']
+
+    # Ordenar por username, fecha de creación o nombre
+    ordering_fields = ['username', 'first_name', 'last_name', 'email']
+    ordering = ['username']
+
+    
     """
     def get_permissions(self):
         

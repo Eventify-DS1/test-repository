@@ -1,8 +1,9 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.utils import timezone
-from .models import Evento, CategoriaEvento
+from .models import Evento, CategoriaEvento, Inscripcion
 from apps.usuarios.models import Usuario
+from apps.usuarios.serializer import UsuarioSerializer
 
 class CategoriaEventoSerializer(serializers.ModelSerializer):
     """
@@ -130,3 +131,32 @@ class EventoSerializer(serializers.ModelSerializer):
     #     def perform_create(self, serializer):
     #         serializer.save(organizador=self.request.user)
     # ==========================================================
+
+class InscripcionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Inscripcion
+        fields = ['id', 'usuario', 'evento', 'fecha_inscripcion']
+        read_only_fields = ['fecha_inscripcion']
+
+    def create(self,validated_data):
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            validated_data['usuario'] = request.user
+        return Inscripcion.objects.create(**validated_data)
+
+    def validate(self, attrs):
+        usuario = attrs.get('usuario')
+        evento = attrs.get('evento')
+        if Inscripcion.objects.filter(usuario=usuario, evento=evento).exists():
+            raise serializers.ValidationError("Este usuario ya está inscrito en el evento.")
+        return attrs
+    
+
+class InscripcionDetalleSerializer(serializers.ModelSerializer):
+    usuario = UsuarioSerializer(read_only=True)
+    evento = EventoSerializer(read_only=True)
+
+    class Meta:
+        model = Inscripcion
+        fields = ['id', 'usuario', 'evento', 'fecha_inscripcion']
+

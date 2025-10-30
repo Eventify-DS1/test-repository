@@ -134,5 +134,32 @@ AUTH_USER_MODEL = 'usuarios.Usuario'
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
-    ]
+    ],
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter'
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+    'rest_framework.renderers.JSONRenderer',          # La API responde en JSON (el formato estándar)
+    'rest_framework.renderers.BrowsableAPIRenderer',  # Habilita la interfaz web interactiva de DRF
+    ],
+
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+    'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
+    'DEFAULT_THROTTLE_CLASSES': [
+    'rest_framework.throttling.UserRateThrottle',
+    'rest_framework.throttling.AnonRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+    'user': '100000/day',
+    'anon': '10000/day',
+    },
+    'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.NamespaceVersioning',
+    'DATETIME_FORMAT': "%Y-%m-%d %H:%M:%S",
+
+
+    
+
 }

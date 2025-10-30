@@ -1,8 +1,8 @@
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-from .models import Evento, CategoriaEvento
-from .serializer import EventoSerializer, CategoriaEventoSerializer
+from .models import Evento, CategoriaEvento, Inscripcion
+from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer
 
 
 class CategoriaEventoViewSet(viewsets.ModelViewSet):
@@ -14,6 +14,11 @@ class CategoriaEventoViewSet(viewsets.ModelViewSet):
     serializer_class = CategoriaEventoSerializer
     #permission_classes = [IsAuthenticated]
 
+    search_fields = ['nombre']
+    ordering_fields = ['nombre']
+    ordering = ['nombre']
+
+    
 
 class EventoViewSet(viewsets.ModelViewSet):
     """
@@ -24,6 +29,19 @@ class EventoViewSet(viewsets.ModelViewSet):
     queryset = Evento.objects.all()
     serializer_class = EventoSerializer
     #permission_classes = [IsAuthenticated]
+
+    # 🔍 Búsqueda textual
+    search_fields = ['titulo', 'descripcion', 'ubicacion', 'categoria__nombre', 'organizador__nombre']
+
+    # ⚙️ Filtros exactos (por valores específicos)
+    filterset_fields = ['categoria', 'organizador', 'fecha_inicio', 'fecha_fin']
+
+    # 🔢 Ordenamiento
+    ordering_fields = ['fecha_inicio', 'fecha_fin', 'titulo', 'aforo']
+    ordering = ['fecha_inicio']  # Orden por defecto (por fecha de inicio)
+
+    
+
 
     
     """
@@ -57,3 +75,32 @@ class EventoViewSet(viewsets.ModelViewSet):
             headers=headers
         )
         """
+    
+class InscripcionViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para el modelo Inscripcion.
+    - Solo usuarios autenticados pueden inscribirse en eventos.
+    - Se valida que no haya inscripciones duplicadas.
+    """
+    queryset = Inscripcion.objects.all()
+    #permission_classes = [IsAuthenticated]
+
+    # 🔍 Búsqueda y filtros
+    search_fields = ['usuario__nombre', 'evento__titulo']
+    filterset_fields = ['usuario', 'evento']
+    ordering_fields = ['fecha_inscripcion']
+    ordering = ['-fecha_inscripcion']  # Más recientes primero
+
+    def get_serializer_class(self):
+        if self.action in ['list', 'retrieve']:
+            return InscripcionDetalleSerializer
+        return InscripcionSerializer
+
+    def perform_create(self, serializer):
+        """
+        Asigna automáticamente el usuario autenticado
+        antes de guardar la inscripción.
+        """
+        serializer.save(usuario=self.request.user)
+
+    
