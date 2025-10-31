@@ -1,0 +1,11 @@
+# Base de datos PostgreSQL
+POSTGRES_DB=eventify_db
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=1234
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+
+# Django
+SECRET_KEY=django-insecure-&gr$4lj5srx4kz98-!#qgf6o8332t1sfd(tzah4yu2*-%&@f0r
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1

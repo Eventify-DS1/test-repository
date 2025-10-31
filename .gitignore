@@ -7,6 +7,11 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Archivos de configuración y secretos
+.env
+.env.local
+.env.production
+
 node_modules
 dist
 dist-ssr
