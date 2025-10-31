@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "animejs": path.resolve(__dirname, "./node_modules/animejs/lib/anime.es.js"),
     },
   },
 }));
