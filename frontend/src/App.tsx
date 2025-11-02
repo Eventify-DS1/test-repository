@@ -17,6 +17,8 @@ import EventDetail from "./pages/EventDetail";
 import NotFound from "./pages/NotFound";
 import PageLoader from "@/components/layout/PageLoader";
 import { usePageLoader } from "@/hooks/use-page-loader";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +43,8 @@ const App = () => {
             <Route path="/dashboard/notifications" element={<Notifications />} />
             <Route path="/dashboard/rate" element={<RateEvents />} />
             <Route path="/dashboard/profile" element={<Profile />} />
+            <Route path="/register" element={<RegisterPage />}/>
+            <Route path="/login" element={<LoginPage />}/>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

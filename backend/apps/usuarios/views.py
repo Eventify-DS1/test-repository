@@ -113,16 +113,16 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             key='access',
             value=access,
             httponly=True,
-            secure=True,
-            samesite='None' # Ya que el front y el back están en dominios diferentes
+            secure=False,  # True en producción con HTTPS, False para desarrollo local
+            samesite='Lax'  # 'None' requiere secure=True, 'Lax' funciona en local
         )
         
         response.set_cookie(
             key='refresh',
             value=str(refresh),
             httponly=True,
-            secure=True,
-            samesite='None'
+            secure=False,  # True en producción con HTTPS, False para desarrollo local
+            samesite='Lax'
         )
         
         return response

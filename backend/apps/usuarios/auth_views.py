@@ -22,15 +22,15 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             key='access',
             value=access,
             httponly=True,
-            secure=True,
-            samesite='None',  # importante si frontend y backend están en dominios diferentes
+            secure=False,  # True en producción con HTTPS, False para desarrollo local
+            samesite='Lax',  # 'None' requiere secure=True, 'Lax' funciona en local
         )
         response.set_cookie(
             key='refresh',
             value=refresh,
             httponly=True,
-            secure=True,
-            samesite='None',
+            secure=False,  # True en producción con HTTPS, False para desarrollo local
+            samesite='Lax',
         )
 
         response.data = {"detail": "Login exitoso"}
@@ -53,8 +53,8 @@ class CookieTokenRefreshView(TokenRefreshView):
             key='access',
             value=new_access,
             httponly=True,
-            secure=True,
-            samesite='None',
+            secure=False,  # True en producción con HTTPS, False para desarrollo local
+            samesite='Lax',
         )
         response.data = {"detail": "Token refreshed"}
         return response
@@ -77,9 +77,9 @@ class LogoutView(APIView):
     def post(self, request):
         response = Response({"detail": "Logout exitoso"}, status=status.HTTP_205_RESET_CONTENT)
 
-        # Eliminar cookies
-        response.delete_cookie('access')
-        response.delete_cookie('refresh')
+        # Eliminar cookies con los mismos atributos que se usaron para crearlas
+        response.delete_cookie('access', samesite='Lax')
+        response.delete_cookie('refresh', samesite='Lax')
 
         # Blacklist opcional si usas token_blacklist
         refresh_token = request.COOKIES.get('refresh')
