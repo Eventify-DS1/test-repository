@@ -5,6 +5,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import AnonymousUser
 from .models import Usuario, Rol
 from .serializer import UsuarioSerializer, RolSerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 
 
 class RolViewSet(viewsets.ModelViewSet):
@@ -72,13 +73,40 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
+        
+        # Creación de par tokens para el usuario recién creado
+        user = serializer.instance
+        refresh = RefreshToken.for_user(user)
+        access = str(refresh.access_token)
+        
         headers = self.get_success_headers(serializer.data)
-        return Response(
-            {
+        response_data = {
                 "message": "Usuario registrado correctamente.",
                 "usuario": serializer.data
-            },
+            }
+        
+        response = Response(
+            response_data,
             status=status.HTTP_201_CREATED,
             headers=headers
         )
+        
+        # Se envían las cookies usando httpOnly y Secure
+        response.set_cookie(
+            key='access',
+            value=access,
+            httponly=True,
+            secure=True,
+            samesite='None' # Ya que el front y el back están en dominios diferentes
+        )
+        
+        response.set_cookie(
+            key='refresh',
+            value=str(refresh),
+            httponly=True,
+            secure=True,
+            samesite='None'
+        )
+        
+        return response
 
