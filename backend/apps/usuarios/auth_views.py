@@ -5,7 +5,6 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializer import RegisterSerializer
 
 
 class CookieTokenObtainPairView(TokenObtainPairView):

@@ -5,7 +5,6 @@ from .views import UsuarioViewSet, RolViewSet
 from .auth_views import (CookieTokenObtainPairView, 
                          CookieTokenRefreshView, 
                          CookieTokenVerifyView, 
-                         RegisterView,
                          LogoutView
                          )
 
