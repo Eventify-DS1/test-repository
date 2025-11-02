@@ -15,11 +15,12 @@ services:
   backend:
     build:
       context: ./backend
+      dockerfile: Dockerfile
     working_dir: /app
     volumes:
       - ./backend:/app
     env_file:
-      - ./backend/.env
+      - .env
     command: python manage.py runserver 0.0.0.0:8000
     ports:
       - "8000:8000"
