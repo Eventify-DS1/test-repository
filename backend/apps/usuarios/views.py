@@ -1,21 +1,25 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from .permissions import IsAdmin, IsOwnerOrAdmin
 from django.contrib.auth.models import AnonymousUser
 from .models import Usuario, Rol
 from .serializer import UsuarioSerializer, RolSerializer
-from rest_framework_simplejwt.tokens import RefreshToken
 
 
 class RolViewSet(viewsets.ModelViewSet):
     """
-    ViewSet para gestionar roles del sistema.
+    ViewSet para gestionar roles del sistema. Solo permitido para administradores.
     - Permite listar, crear, actualizar y eliminar roles.
     """
+    # Aplicamos el permiso 'IsAdmin' a TODAS las acciones de este ViewSet
+    permission_classes = [IsAdmin]
+    
     queryset = Rol.objects.all()
     serializer_class = RolSerializer
-    #permission_classes = [IsAuthenticated]  # Solo usuarios autenticados pueden modificar roles
+    # permission_classes = [IsAuthenticated]  # Solo usuarios autenticados pueden modificar roles
 
     filterset_fields = ['nombre']
 
@@ -45,17 +49,30 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     ordering = ['username']
 
     
-    """
+    
     def get_permissions(self):
+        """
+        Define permisos según la acción:
+        - create (Registro): Abierto para cualquiera.
+        - list (Ver todos): Solo Admins.
+        - retrieve (Ver detalle): El propio usuario o un Admin.
+        - update/partial_update (Editar): El propio usuario o un Admin.
+        - destroy (Borrar): Solo Admins.
+        """
+        if self.action == 'create':
+            return [AllowAny()]
+
+        if self.action == 'list':
+            return [IsAdmin()]
         
-            Define permisos según la acción:
-            - create: abierto (registro de nuevos usuarios)
-            - demás acciones: requiere autenticación
+        if self.action == 'destroy':
+            return [IsAdmin()]
         
-            if self.action == 'create':
-                return [AllowAny()]
-            return [IsAuthenticated()]
-    """
+        if self.action in ['retrieve', 'update', 'partial_update']:
+            return [IsAuthenticated(), IsOwnerOrAdmin()]
+        
+        return [IsAuthenticated()]
+    
     
 
     def perform_create(self, serializer):
