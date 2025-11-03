@@ -2,7 +2,7 @@ import apiClient from "./api";
 
 // Función para el endpoint de registro
 export const registerRequest = (userData) => {
-    return apiClient.post('/users-utils/', userData);
+    return apiClient.post('/users-utils/usuarios/', userData);
 };
 
 // Función para el endpoint de login
