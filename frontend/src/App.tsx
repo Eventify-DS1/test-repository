@@ -15,41 +15,34 @@ import RateEvents from "./pages/RateEvents";
 import Profile from "./pages/Profile";
 import EventDetail from "./pages/EventDetail";
 import NotFound from "./pages/NotFound";
-import PageLoader from "@/components/layout/PageLoader";
-import { usePageLoader } from "@/hooks/use-page-loader";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 
 const queryClient = new QueryClient();
 
 const App = () => {
-  const loaderActive = usePageLoader(400);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/calendario" element={<Calendario />} />
-            <Route path="/eventos" element={<EventsList />} />
-            <Route path="/event/:id" element={<EventDetail />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/search" element={<Search />} />
-            <Route path="/dashboard/create" element={<CreateEvent />} />
-            <Route path="/dashboard/reports" element={<Reports />} />
-            <Route path="/dashboard/notifications" element={<Notifications />} />
-            <Route path="/dashboard/rate" element={<RateEvents />} />
-            <Route path="/dashboard/profile" element={<Profile />} />
-            <Route path="/register" element={<RegisterPage />}/>
-            <Route path="/login" element={<LoginPage />}/>
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <PageLoader active={loaderActive} />
-        </>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/calendario" element={<Calendario />} />
+          <Route path="/eventos" element={<EventsList />} />
+          <Route path="/event/:id" element={<EventDetail />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard/search" element={<Search />} />
+          <Route path="/dashboard/create" element={<CreateEvent />} />
+          <Route path="/dashboard/reports" element={<Reports />} />
+          <Route path="/dashboard/notifications" element={<Notifications />} />
+          <Route path="/dashboard/rate" element={<RateEvents />} />
+          <Route path="/dashboard/profile" element={<Profile />} />
+          <Route path="/register" element={<RegisterPage />}/>
+          <Route path="/login" element={<LoginPage />}/>
+          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
       </TooltipProvider>
     </QueryClientProvider>
   );
