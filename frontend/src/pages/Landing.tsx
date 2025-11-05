@@ -9,6 +9,21 @@ import { useScrollReveal } from "@/hooks/use-scroll-reveal";
 import { AnimatedCounter, AnimatedTitle, StaggeredCards } from "@/components/animations";
 import heroImage from "@/assets/hero-image.jpg";
 import studentsCollaboration from "@/assets/students-collaboration.jpg";
+import { useEffect, useState } from "react";
+import { getUsersCountRequest } from "@/api/users";
+import { getFeaturedEventsRequest } from "@/api/events";
+
+// Tipo para eventos del backend
+interface BackendEvento {
+  id: number;
+  titulo: string;
+  categoria?: { nombre: string };
+  fecha_inicio: string;
+  ubicacion: string;
+  aforo: number;
+  inscritos?: number;
+  imagen?: string;
+}
 
 const ScrollRevealSection = ({ children, className = "", direction = "up" }: { 
   children: React.ReactNode; 
@@ -37,7 +52,69 @@ const ScrollRevealSection = ({ children, className = "", direction = "up" }: {
 };
 
 const Landing = () => {
-  const featuredEvents = mockEvents.slice(0, 3);
+  const [featuredEvents, setFeaturedEvents] = useState([]);
+  const [loadingFeaturedEvents, setLoadingFeaturedEvents] = useState(true);
+  const [usuariosRegistrados, setUsuariosRegistrados] = useState(0);
+  const [totalEvents, setTotalEvents] = useState(0);
+  useEffect(() => {
+    const fetchUsersCount = async () => {
+      try {
+        const response = await getUsersCountRequest();
+        setUsuariosRegistrados(response.data.total);
+      } catch (error) {
+        console.error('Error al obtener el contador de usuarios:', error);
+      }
+    };
+  fetchUsersCount();
+  }, []);
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        setLoadingFeaturedEvents(true);
+        const response = await getFeaturedEventsRequest(3);
+        
+        console.log('✅ Eventos recibidos:', response.data);
+        
+        // La respuesta puede venir como { results: [...], count: N } o directamente [...]
+        const eventosData = response.data.results || response.data || [];
+        
+        // Actualizar contador total si viene en la respuesta
+        if (response.data.count) {
+          setTotalEvents(response.data.count);
+        }
+        
+        // Mapear datos del backend al formato del frontend
+        const mappedEvents = eventosData.map((evento: BackendEvento) => ({
+          id: evento.id,
+          title: evento.titulo,
+          category: evento.categoria?.nombre || 'Sin categoría',
+          dateStart: evento.fecha_inicio,
+          time: new Date(evento.fecha_inicio).toLocaleTimeString('es-ES', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }),
+          location: evento.ubicacion,
+          capacity: evento.aforo,
+          registered: evento.inscritos || 0,
+          image: evento.imagen || '/placeholder.svg'
+        }));
+        
+        setFeaturedEvents(mappedEvents);
+        console.log('✅ Eventos mapeados:', mappedEvents);
+        
+      } catch (error) {
+        console.error('❌ Error al obtener eventos:', error);
+        // Fallback a mockEvents si falla la API
+        setFeaturedEvents(mockEvents.slice(0, 3));
+      } finally {
+        setLoadingFeaturedEvents(false);
+      }
+    };
+    
+    fetchEvents();
+  }, []);
+
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -101,7 +178,7 @@ const Landing = () => {
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <AnimatedCounter 
-                    end={500}
+                    end={totalEvents}
                     suffix="+"
                     className="text-4xl md:text-5xl font-extrabold text-white drop-shadow-lg"
                   />
@@ -112,7 +189,7 @@ const Landing = () => {
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <AnimatedCounter 
-                    end={2000}
+                    end={usuariosRegistrados}
                     suffix="+"
                     className="text-4xl md:text-5xl font-extrabold text-white drop-shadow-lg"
                   />
@@ -151,7 +228,7 @@ const Landing = () => {
               <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift shadow-xl" style={{ background: 'linear-gradient(135deg, hsl(260 75% 60%) 0%, hsl(270 70% 65%) 100%)' }}>
                 <Users className="h-14 w-14 mx-auto mb-4 text-white animate-float" style={{ animationDelay: '0.5s' }} />
                 <AnimatedCounter 
-                  end={576}
+                  end={usuariosRegistrados}
                   suffix="+"
                   className="text-5xl font-extrabold text-white mb-2"
                 />
@@ -376,22 +453,42 @@ const Landing = () => {
           </ScrollRevealSection>
           
           <div className="grid md:grid-cols-3 gap-8">
-            {featuredEvents.map((event) => (
-              <ScrollRevealSection key={event.id} direction="scale">
-                <EventCard
-                  id={event.id}
-                  title={event.title}
-                  category={event.category}
-                  date={event.dateStart}
-                  time={event.time}
-                  location={event.location}
-                  capacity={event.capacity}
-                  registered={event.registered}
-                  image={event.image}
-                />
-              </ScrollRevealSection>
-            ))}
-          </div>
+  {loadingFeaturedEvents ? (
+    // Skeleton loader mientras carga
+    [1, 2, 3].map((i) => (
+      <div key={i} className="animate-pulse">
+        <div className="bg-gray-200 dark:bg-gray-700 h-80 rounded-3xl"></div>
+      </div>
+    ))
+  ) : featuredEvents.length > 0 ? (
+    // Mostrar eventos reales
+    featuredEvents.map((event) => (
+      <ScrollRevealSection key={event.id} direction="scale">
+        <EventCard
+          id={event.id}
+          title={event.title}
+          category={event.category}
+          date={event.dateStart}
+          time={event.time}
+          location={event.location}
+          capacity={event.capacity}
+          registered={event.registered}
+          image={event.image}
+        />
+      </ScrollRevealSection>
+    ))
+  ) : (
+    // Si no hay eventos
+    <div className="col-span-3 text-center py-12">
+      <p className="text-xl text-muted-foreground">
+        No hay eventos disponibles en este momento 📅
+      </p>
+      <p className="text-sm text-muted-foreground mt-2">
+        Pronto habrá nuevos eventos increíbles
+      </p>
+    </div>
+  )}
+</div>
           
           <div className="text-center mt-12">
             <Button 

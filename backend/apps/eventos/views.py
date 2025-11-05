@@ -23,12 +23,11 @@ class CategoriaEventoViewSet(viewsets.ModelViewSet):
 class EventoViewSet(viewsets.ModelViewSet):
     """
     ViewSet para el modelo Evento.
-    - Solo usuarios autenticados pueden crear eventos.
-    - El organizador se asigna automáticamente en perform_create(). Mi bombo
+    - Cualquier persona puede ver eventos (list, retrieve)
+    - Solo usuarios autenticados pueden crear/editar/eliminar eventos
     """
     queryset = Evento.objects.all()
     serializer_class = EventoSerializer
-    #permission_classes = [IsAuthenticated]
 
     # 🔍 Búsqueda textual
     search_fields = ['titulo', 'descripcion', 'ubicacion', 'categoria__nombre', 'organizador__nombre']
@@ -39,6 +38,16 @@ class EventoViewSet(viewsets.ModelViewSet):
     # 🔢 Ordenamiento
     ordering_fields = ['fecha_inicio', 'fecha_fin', 'titulo', 'aforo']
     ordering = ['fecha_inicio']  # Orden por defecto (por fecha de inicio)
+
+    def get_permissions(self):
+        """
+        Permisos personalizados según la acción:
+        - list, retrieve: cualquiera puede ver (AllowAny)
+        - create, update, destroy: solo usuarios autenticados
+        """
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
     
 

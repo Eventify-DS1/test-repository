@@ -1,0 +1,7 @@
+# Base de datos PostgreSQL
+DATABASE_URL=postgresql://neondb_owner:npg_Eq7TCZU3aulw@ep-mute-pond-ad34lrzi-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+
+# Django
+SECRET_KEY=django-insecure-&gr$4lj5srx4kz98-!#qgf6o8332t1sfd(tzah4yu2*-%&@f0r
+DEBUG=True
+ALLOWED_HOSTS=localhost,127.0.0.1
