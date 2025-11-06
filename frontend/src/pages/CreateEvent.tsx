@@ -1,31 +1,39 @@
-  import Sidebar from "@/components/layout/Sidebar";
-  import { Button } from "@/components/ui/button";
-  import { Input } from "@/components/ui/input";
-  import { Label } from "@/components/ui/label";
-  import { verifyTokenRequest } from "@/api/auth";
-  import { createEventRequest } from "@/api/event";
-  import { Textarea } from "@/components/ui/textarea";
-  import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-  } from "@/components/ui/select";
-  import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-  } from "@/components/ui/card";
-  import { Calendar } from "lucide-react";
-  import { toast } from "sonner";
-  import axios from "axios";
-  import { useState, useEffect } from "react";
+import Sidebar from "@/components/layout/Sidebar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { verifyTokenRequest, getCategoriasRequest } from "@/api/auth";
+import { createEventRequest } from "@/api/event";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Calendar } from "lucide-react";
+import { toast } from "sonner";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-  const CreateEvent = () => {
-    const [category, setCategory] = useState("");
+interface Categoria {
+  id: number;
+  nombre: string;
+}
+
+const CreateEvent = () => {
+  const [category, setCategory] = useState("");
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -35,11 +43,27 @@
       } catch (error) {
         console.error("No autenticado:", error);
         toast.error("Debes iniciar sesión para crear eventos");
-        // Redirigir al login
+        navigate("/login");
       }
     };
     
     checkAuth();
+  }, [navigate]);
+
+  // Cargar categorías desde el backend
+  useEffect(() => {
+    const fetchCategorias = async () => {
+      try {
+        const response = await getCategoriasRequest();
+        const categoriasData = response.data.results || response.data;
+        setCategorias(Array.isArray(categoriasData) ? categoriasData : []);
+      } catch (error) {
+        console.error("Error al cargar categorías:", error);
+        toast.error("No se pudieron cargar las categorías");
+      }
+    };
+
+    fetchCategorias();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -60,6 +84,11 @@
       return;
     }
 
+    if (!category) {
+      toast.error("Debes seleccionar una categoría");
+      return;
+    }
+
     formData.append("categoria_id", category);
 
     console.log("=== DATOS DEL FORMULARIO ===");
@@ -68,11 +97,17 @@
     }
 
     try {
+      setLoading(true);
       const response = await createEventRequest(formData);
       console.log("✅ Evento creado:", response.data);
       toast.success("Evento creado exitosamente");
       form.reset();
       setCategory("");
+      
+      // Redirigir a la lista de eventos después de 1.5 segundos
+      setTimeout(() => {
+        navigate("/events");
+      }, 1500);
     } catch (error: any) {
       console.error("=== ERROR COMPLETO ===");
       if (error.response) {
@@ -82,10 +117,22 @@
 
         if (error.response.status === 401) {
           toast.error("No estás autenticado. Por favor inicia sesión.");
+          navigate("/login");
         } else if (error.response.status === 403) {
           toast.error("No tienes permisos para crear eventos.");
+        } else if (error.response.data) {
+          // Mostrar errores específicos del backend
+          const errorMessages = Object.entries(error.response.data)
+            .map(([field, messages]) => {
+              if (Array.isArray(messages)) {
+                return `${field}: ${messages.join(", ")}`;
+              }
+              return `${field}: ${messages}`;
+            })
+            .join("\n");
+          toast.error(errorMessages || "Error al crear el evento");
         } else {
-          toast.error(`Error: ${JSON.stringify(error.response.data)}`);
+          toast.error("Error al crear el evento");
         }
       } else if (error.request) {
         console.error("Request:", error.request);
@@ -94,148 +141,174 @@
         console.error("Error:", error.message);
         toast.error("Error desconocido");
       }
+    } finally {
+      setLoading(false);
     }
   };
 
+  return (
+    <div className="flex min-h-screen w-full">
+      <Sidebar />
+      <main className="flex-1 p-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Crear Nuevo Evento</h1>
+          <p className="text-muted-foreground">
+            Completa la información para publicar tu evento
+          </p>
+        </div>
 
-    return (
-      <div className="flex min-h-screen w-full">
-        <Sidebar />
-        <main className="flex-1 p-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2">Crear Nuevo Evento</h1>
-            <p className="text-muted-foreground">
-              Completa la información para publicar tu evento
-            </p>
-          </div>
+        <Card className="max-w-3xl shadow-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calendar className="h-5 w-5 text-primary" />
+              Información del Evento
+            </CardTitle>
+            <CardDescription>Todos los campos son obligatorios</CardDescription>
+          </CardHeader>
 
-          <Card className="max-w-3xl shadow-card">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                Información del Evento
-              </CardTitle>
-              <CardDescription>Todos los campos son obligatorios</CardDescription>
-            </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Título */}
+              <div className="space-y-2">
+                <Label htmlFor="titulo">Título del evento</Label>
+                <Input
+                  id="titulo"
+                  name="titulo"
+                  placeholder="Ej: Workshop de Inteligencia Artificial"
+                  required
+                  disabled={loading}
+                />
+              </div>
 
-            <CardContent>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                {/* Título */}
+              {/* Descripción */}
+              <div className="space-y-2">
+                <Label htmlFor="descripcion">Descripción</Label>
+                <Textarea
+                  id="descripcion"
+                  name="descripcion"
+                  placeholder="Describe tu evento..."
+                  rows={5}
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Fechas */}
+              <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="titulo">Título del evento</Label>
+                  <Label htmlFor="fecha_inicio">Fecha de inicio</Label>
                   <Input
-                    id="titulo"
-                    name="titulo"
-                    placeholder="Ej: Workshop de Inteligencia Artificial"
+                    type="datetime-local"
+                    id="fecha_inicio"
+                    name="fecha_inicio"
                     required
+                    disabled={loading}
+                    onKeyDown={(e) => e.preventDefault()}
                   />
                 </div>
-
-                {/* Descripción */}
                 <div className="space-y-2">
-                  <Label htmlFor="descripcion">Descripción</Label>
-                  <Textarea
-                    id="descripcion"
-                    name="descripcion"
-                    placeholder="Describe tu evento..."
-                    rows={5}
-                    required
-                  />
-                </div>
-
-                {/* Fechas */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fecha_inicio">Fecha de inicio</Label>
-                    <Input
-                      type="datetime-local"
-                      id="fecha_inicio"
-                      name="fecha_inicio"
-                      required
-                      onKeyDown={(e) => e.preventDefault()}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="fecha_fin">Fecha de fin</Label>
-                    <Input
-                      type="datetime-local"
-                      id="fecha_fin"
-                      name="fecha_fin"
-                      required
-                      onKeyDown={(e) => e.preventDefault()}
-                    />
-                  </div>
-                </div>
-
-                {/* Aforo + Categoría */}
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="aforo">Aforo máximo</Label>
-                    <Input
-                      type="number"
-                      id="aforo"
-                      name="aforo"
-                      placeholder="100"
-                      min="1"
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Categoría</Label>
-                    <Select
-                      value={category}
-                      onValueChange={setCategory}
-                      required
-                    >
-                      <SelectTrigger id="category">
-                        <SelectValue placeholder="Selecciona una categoría" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {/* ⚠️ Los values deben ser los IDs existentes en tu base de datos */}
-                        <SelectItem value="1">Académico</SelectItem>
-                        <SelectItem value="2">Deportivo</SelectItem>
-                        <SelectItem value="3">Cultural</SelectItem>
-                        <SelectItem value="4">Social</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Ubicación */}
-                <div className="space-y-2">
-                  <Label htmlFor="ubicacion">Ubicación</Label>
+                  <Label htmlFor="fecha_fin">Fecha de fin</Label>
                   <Input
-                    id="ubicacion"
-                    name="ubicacion"
-                    placeholder="Ej: Auditorio Principal"
+                    type="datetime-local"
+                    id="fecha_fin"
+                    name="fecha_fin"
                     required
+                    disabled={loading}
+                    onKeyDown={(e) => e.preventDefault()}
+                  />
+                </div>
+              </div>
+
+              {/* Aforo + Categoría */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="aforo">Aforo máximo</Label>
+                  <Input
+                    type="number"
+                    id="aforo"
+                    name="aforo"
+                    placeholder="100"
+                    min="1"
+                    required
+                    disabled={loading}
                   />
                 </div>
 
-                {/* Imagen */}
                 <div className="space-y-2">
-                  <Label htmlFor="foto">Imagen del evento (opcional)</Label>
-                  <Input id="foto" name="foto" type="file" accept="image/*" />
-                </div>
-
-                <div className="flex gap-4 pt-4">
-                  <Button
-                    type="submit"
-                    className="flex-1 gradient-primary text-white border-0"
+                  <Label htmlFor="category">Categoría</Label>
+                  <Select
+                    value={category}
+                    onValueChange={setCategory}
+                    required
+                    disabled={loading}
                   >
-                    Publicar evento
-                  </Button>
-                  <Button type="button" variant="outline">
-                    Cancelar
-                  </Button>
+                    <SelectTrigger id="category">
+                      <SelectValue placeholder="Selecciona una categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categorias.length > 0 ? (
+                        categorias.map((cat) => (
+                          <SelectItem key={cat.id} value={cat.id.toString()}>
+                            {cat.nombre}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="loading" disabled>
+                          Cargando categorías...
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </form>
-            </CardContent>
-          </Card>
-        </main>
-      </div>
-    );
-  };
+              </div>
 
-  export default CreateEvent;
+              {/* Ubicación */}
+              <div className="space-y-2">
+                <Label htmlFor="ubicacion">Ubicación</Label>
+                <Input
+                  id="ubicacion"
+                  name="ubicacion"
+                  placeholder="Ej: Auditorio Principal"
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              {/* Imagen */}
+              <div className="space-y-2">
+                <Label htmlFor="foto">Imagen del evento (opcional)</Label>
+                <Input 
+                  id="foto" 
+                  name="foto" 
+                  type="file" 
+                  accept="image/*"
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <Button
+                  type="submit"
+                  className="flex-1 gradient-primary text-white border-0"
+                  disabled={loading}
+                >
+                  {loading ? "Creando evento..." : "Publicar evento"}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline"
+                  onClick={() => navigate("/events")}
+                  disabled={loading}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
+    </div>
+  );
+};
+
+export default CreateEvent;
