@@ -1,8 +1,9 @@
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from rest_framework.decorators import action
 from .models import Evento, CategoriaEvento, Inscripcion
-from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer
+from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer
 
 
 class CategoriaEventoViewSet(viewsets.ModelViewSet):
@@ -18,6 +19,29 @@ class CategoriaEventoViewSet(viewsets.ModelViewSet):
     ordering_fields = ['nombre']
     ordering = ['nombre']
 
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def estadisticas(self, request):
+        """
+        Endpoint para obtener estadísticas de categorías.
+        Accesible públicamente sin autenticación.
+        """
+        # Crear una instancia ficticia para el serializer
+        categoria = CategoriaEvento.objects.first() if CategoriaEvento.objects.exists() else None
+        
+        serializer = EstadisticasCategoriasSerializer(categoria)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    def get_permissions(self):
+        """
+        Define permisos según la acción:
+        - estadisticas: Abierto para cualquiera.
+        - Otras acciones: Permisos por defecto.
+        """
+        if self.action == 'estadisticas':
+            return [AllowAny()]
+        
+        return [AllowAny()]  # Por ahora todas las acciones son públicas
+
     
 
 class EventoViewSet(viewsets.ModelViewSet):
@@ -31,7 +55,7 @@ class EventoViewSet(viewsets.ModelViewSet):
     #permission_classes = [IsAuthenticated]
 
     # 🔍 Búsqueda textual
-    search_fields = ['titulo', 'descripcion', 'ubicacion', 'categoria__nombre', 'organizador__nombre']
+    search_fields = ['titulo', 'descripcion', 'ubicacion', 'categoria__nombre']
 
     # ⚙️ Filtros exactos (por valores específicos)
     filterset_fields = ['categoria', 'organizador', 'fecha_inicio', 'fecha_fin']
@@ -39,6 +63,29 @@ class EventoViewSet(viewsets.ModelViewSet):
     # 🔢 Ordenamiento
     ordering_fields = ['fecha_inicio', 'fecha_fin', 'titulo', 'aforo']
     ordering = ['fecha_inicio']  # Orden por defecto (por fecha de inicio)
+
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def estadisticas(self, request):
+        """
+        Endpoint para obtener estadísticas de eventos.
+        Accesible públicamente sin autenticación.
+        """
+        # Crear una instancia ficticia para el serializer
+        evento = Evento.objects.first() if Evento.objects.exists() else None
+        
+        serializer = EstadisticasEventosSerializer(evento)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def get_permissions(self):
+        """
+        Define permisos según la acción:
+        - list, retrieve, estadisticas: Abierto para cualquiera.
+        - create, update, destroy: Permisos por defecto (requiere autenticación).
+        """
+        if self.action in ['list', 'retrieve', 'estadisticas']:
+            return [AllowAny()]
+        # Para create, update, destroy se usan los permisos por defecto
+        return [AllowAny()]  # Por ahora todas las acciones son públicas
 
     
 
@@ -103,4 +150,4 @@ class InscripcionViewSet(viewsets.ModelViewSet):
         """
         serializer.save(usuario=self.request.user)
 
-    
+

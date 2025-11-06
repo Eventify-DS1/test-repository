@@ -1,13 +1,9 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, Search } from "lucide-react";
-import { useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { Calendar } from "lucide-react";
 
 const Header = () => {
   const location = useLocation();
-  const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState("");
   
   const navLinks = [
     { to: "/", label: "Inicio" },
@@ -15,17 +11,11 @@ const Header = () => {
     { to: "/eventos", label: "Eventos disponibles" },
   ];
   
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/eventos?search=${encodeURIComponent(searchQuery)}`);
-    }
-  };
-  
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
+      <div className="container flex h-16 items-center justify-between gap-4">
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-2 flex-shrink-0">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
             <Calendar className="h-6 w-6 text-white" />
           </div>
@@ -34,37 +24,26 @@ const Header = () => {
           </span>
         </Link>
         
-        <div className="hidden md:flex items-center gap-6 flex-1 max-w-2xl mx-8">
-          <nav className="flex items-center gap-6">
-            {navLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`text-sm font-medium transition-colors hover:text-primary whitespace-nowrap ${
-                  location.pathname === link.to
-                    ? "text-primary"
-                    : "text-foreground/70"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-          
-          <form onSubmit={handleSearch} className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="text"
-              placeholder="Buscar eventos..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 h-10 w-full border-primary/20 focus:border-primary transition-colors"
-            />
-          </form>
-        </div>
+        {/* Navigation Links */}
+        <nav className="hidden md:flex items-center gap-6 flex-1 justify-center">
+          {navLinks.map((link) => (
+            <Link
+              key={link.to}
+              to={link.to}
+              className={`text-sm font-medium transition-colors hover:text-primary whitespace-nowrap ${
+                location.pathname === link.to
+                  ? "text-primary"
+                  : "text-foreground/70"
+              }`}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
         
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" asChild>
+        {/* Auth Buttons */}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <Button variant="ghost" asChild className="hidden sm:flex">
             <Link to="/login">Iniciar sesión</Link>
           </Button>
           <Button className="gradient-primary text-white border-0 hover:opacity-90" asChild>

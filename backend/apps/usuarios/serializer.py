@@ -109,3 +109,20 @@ class UsuarioSerializer(serializers.ModelSerializer):
             instance.set_password(password)
         instance.save()
         return instance
+
+class EstadisticasUsuariosSerializer(serializers.ModelSerializer):
+    """
+    Serializador para estadísticas de usuarios.
+    Extiende del modelo Usuario para tener acceso a las consultas.
+    """
+    total_usuarios = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Usuario
+        fields = ['total_usuarios']
+
+    def get_total_usuarios(self, obj):
+        """
+        Retorna el total de usuarios registrados en el sistema.
+        """
+        return Usuario.objects.count()

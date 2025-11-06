@@ -4,9 +4,10 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .permissions import IsAdmin, IsOwnerOrAdmin
+from rest_framework.decorators import action
 from django.contrib.auth.models import AnonymousUser
 from .models import Usuario, Rol
-from .serializer import UsuarioSerializer, RolSerializer
+from .serializer import UsuarioSerializer, RolSerializer, EstadisticasUsuariosSerializer
 
 
 class RolViewSet(viewsets.ModelViewSet):
@@ -48,6 +49,18 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     ordering_fields = ['username', 'first_name', 'last_name', 'email']
     ordering = ['username']
 
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def estadisticas(self, request):
+        """
+        Endpoint para obtener estadísticas de usuarios.
+        Accesible públicamente sin autenticación.
+        """
+        # Crear una instancia ficticia para el serializer
+        usuario = Usuario.objects.first() if Usuario.objects.exists() else None
+        
+        serializer = EstadisticasUsuariosSerializer(usuario)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
     
     
     def get_permissions(self):
@@ -60,6 +73,9 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         - destroy (Borrar): Solo Admins.
         """
         if self.action == 'create':
+            return [AllowAny()]
+
+        if self.action == 'estadisticas':
             return [AllowAny()]
 
         if self.action == 'list':
