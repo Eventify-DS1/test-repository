@@ -2,7 +2,8 @@
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Label } from "@/components/ui/label";
-  import { createEventRequest } from "@/api/event";
+  import apiClient from "@/api/api"
+  import { createEventRequest } from "@/api/auth";
   import { Textarea } from "@/components/ui/textarea";
   import {
     Select,
@@ -21,10 +22,25 @@
   import { Calendar } from "lucide-react";
   import { toast } from "sonner";
   import axios from "axios";
-  import { useState } from "react";
+  import { useState, useEffect } from "react";
 
   const CreateEvent = () => {
     const [category, setCategory] = useState("");
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await apiClient.get("/auth/verify/"); // Ajusta según tu endpoint
+        console.log("Usuario autenticado:", response.data);
+      } catch (error) {
+        console.error("No autenticado:", error);
+        toast.error("Debes iniciar sesión para crear eventos");
+        // Redirigir al login
+      }
+    };
+    
+    checkAuth();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -46,21 +62,37 @@
 
     formData.append("categoria_id", category);
 
+    console.log("=== DATOS DEL FORMULARIO ===");
+    for (let [key, value] of formData.entries()) {
+      console.log(`${key}:`, value);
+    }
+
     try {
       const response = await createEventRequest(formData);
-      console.log("Evento creado:", response.data);
+      console.log("✅ Evento creado:", response.data);
       toast.success("Evento creado exitosamente");
       form.reset();
       setCategory("");
     } catch (error: any) {
+      console.error("=== ERROR COMPLETO ===");
       if (error.response) {
-        console.error("Error completo:", error.response);
-        console.error("Error al crear evento:", error.response.data);
         console.error("Status:", error.response.status);
-        toast.error(`Error: ${JSON.stringify(error.response.data)}`);
+        console.error("Data:", error.response.data);
+        console.error("Headers:", error.response.headers);
+
+        if (error.response.status === 401) {
+          toast.error("No estás autenticado. Por favor inicia sesión.");
+        } else if (error.response.status === 403) {
+          toast.error("No tienes permisos para crear eventos.");
+        } else {
+          toast.error(`Error: ${JSON.stringify(error.response.data)}`);
+        }
+      } else if (error.request) {
+        console.error("Request:", error.request);
+        toast.error("No se pudo conectar con el servidor");
       } else {
-        console.error("Error desconocido:", error);
-        toast.error("Error al crear el evento");
+        console.error("Error:", error.message);
+        toast.error("Error desconocido");
       }
     }
   };
