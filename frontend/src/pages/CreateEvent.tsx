@@ -2,8 +2,8 @@
   import { Button } from "@/components/ui/button";
   import { Input } from "@/components/ui/input";
   import { Label } from "@/components/ui/label";
-  import apiClient from "@/api/api"
-  import { createEventRequest } from "@/api/auth";
+  import { verifyTokenRequest } from "@/api/auth";
+  import { createEventRequest } from "@/api/event";
   import { Textarea } from "@/components/ui/textarea";
   import {
     Select,
@@ -30,7 +30,7 @@
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await apiClient.get("/auth/verify/"); // Ajusta según tu endpoint
+        const response = await verifyTokenRequest();
         console.log("Usuario autenticado:", response.data);
       } catch (error) {
         console.error("No autenticado:", error);
