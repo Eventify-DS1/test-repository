@@ -20,6 +20,41 @@ class CategoriaEventoSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class OrganizadorSerializer(serializers.ModelSerializer):
+    """
+    Serializador simplificado para mostrar información del organizador.
+    Solo incluye campos relevantes para la visualización.
+    """
+    nombre_completo = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Usuario
+        fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo']
+        read_only_fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo']
+    
+    def get_nombre_completo(self, obj):
+        """Retorna el nombre completo o username si no tiene nombre"""
+        nombre = f"{obj.first_name} {obj.last_name}".strip()
+        return nombre if nombre else obj.username
+
+
+class UsuarioInscritoSerializer(serializers.ModelSerializer):
+    """
+    Serializador simplificado para mostrar información de usuarios inscritos.
+    """
+    nombre_completo = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Usuario
+        fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo']
+        read_only_fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo']
+    
+    def get_nombre_completo(self, obj):
+        """Retorna el nombre completo o username si no tiene nombre"""
+        nombre = f"{obj.first_name} {obj.last_name}".strip()
+        return nombre if nombre else obj.username
+
+
 class EventoSerializer(serializers.ModelSerializer):
     """
     Serializador para el modelo Evento.
@@ -36,20 +71,15 @@ class EventoSerializer(serializers.ModelSerializer):
         source='categoria',
         write_only=True
     )
+    
+    # Campo para lectura (devuelve los datos del organizador)
+    organizador = OrganizadorSerializer(read_only=True)
 
-    """
-    Cuando tengamos hecho la autenticacion, descomentar el campo de solo lectura
-    # Campo de solo lectura: muestra el nombre del organizador (relación con Usuario)
-    organizador = serializers.StringRelatedField(read_only=True)
-    """
-        
-    organizador = serializers.PrimaryKeyRelatedField(queryset=Usuario.objects.all())
-
-    """
-    Se puede también mandando toda la info del organizador
-
-    organizador = UsuarioSerializer(read_only=True)
-    """
+    # Número de inscritos
+    numero_inscritos = serializers.SerializerMethodField()
+    
+    # Lista de usuarios inscritos (solo nombres)
+    inscritos = serializers.SerializerMethodField()
 
     class Meta:
         model = Evento
@@ -62,10 +92,21 @@ class EventoSerializer(serializers.ModelSerializer):
             'aforo',
             'ubicacion',
             'foto',
-            'organizador',
+            'organizador',  # Para lectura (devuelve objeto con nombre)
             'categoria',
             'categoria_id',
+            'numero_inscritos',  # Número total de inscritos
+            'inscritos',  # Lista de usuarios inscritos con nombres
         ]
+    
+    def get_numero_inscritos(self, obj):
+        """Retorna el número de inscritos en el evento"""
+        return obj.inscripciones.count()
+    
+    def get_inscritos(self, obj):
+        """Retorna la lista de usuarios inscritos con sus nombres"""
+        inscripciones = obj.inscripciones.select_related('usuario').all()
+        return UsuarioInscritoSerializer([inscripcion.usuario for inscripcion in inscripciones], many=True).data
 
     # === Validaciones personalizadas ===
     def validate(self, attrs):
@@ -90,19 +131,16 @@ class EventoSerializer(serializers.ModelSerializer):
         return attrs
 
     # === Creación personalizada ===
-    """
-    Cuando tengamos hecho la autenticacion, descomentar el metodo
+    
     def create(self, validated_data):
-        
-        Crea un evento asignando automáticamente el organizador
-        a partir del usuario autenticado en el contexto de la petición.
-        
+       # Crea un evento asignando automáticamente el organizador
+       # a partir del usuario autenticado en el contexto de la petición.
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             validated_data['organizador'] = request.user
         return Evento.objects.create(**validated_data)
 
-    """
+    
 
     # ==========================================================
     # Si hay sesión, probar con lo siguiente:
@@ -145,11 +183,13 @@ class InscripcionSerializer(serializers.ModelSerializer):
         return Inscripcion.objects.create(**validated_data)
 
     def validate(self, attrs):
-        usuario = attrs.get('usuario')
+        request = self.context.get('request')
+        usuario = request.user if request and hasattr(request, 'user') else attrs.get('usuario')
         evento = attrs.get('evento')
-        if Inscripcion.objects.filter(usuario=usuario, evento=evento).exists():
+        if usuario and evento and Inscripcion.objects.filter(usuario=usuario, evento=evento).exists():
             raise serializers.ValidationError("Este usuario ya está inscrito en el evento.")
         return attrs
+
     
 
 class InscripcionDetalleSerializer(serializers.ModelSerializer):
@@ -159,4 +199,45 @@ class InscripcionDetalleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Inscripcion
         fields = ['id', 'usuario', 'evento', 'fecha_inscripcion']
+
+class EstadisticasEventosSerializer(serializers.ModelSerializer):
+    """
+    Serializador para estadísticas de eventos.
+    Extiende del modelo Evento para tener acceso a las consultas.
+    """
+    total_eventos = serializers.SerializerMethodField()
+    eventos_proximos = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Evento
+        fields = ['total_eventos', 'eventos_proximos']
+
+    def get_total_eventos(self, obj):
+        """
+        Retorna el total de eventos en el sistema.
+        """
+        return Evento.objects.count()
+
+    def get_eventos_proximos(self, obj):
+        """
+        Retorna el número de eventos con fecha_inicio >= hoy.
+        """
+        return Evento.objects.filter(fecha_inicio__gte=timezone.now()).count()
+
+class EstadisticasCategoriasSerializer(serializers.ModelSerializer):
+    """
+    Serializador para estadísticas de categorías.
+    Extiende del modelo CategoriaEvento para tener acceso a las consultas.
+    """
+    total_categorias = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CategoriaEvento
+        fields = ['total_categorias']
+
+    def get_total_categorias(self, obj):
+        """
+        Retorna el total de categorías en el sistema.
+        """
+        return CategoriaEvento.objects.count()
 

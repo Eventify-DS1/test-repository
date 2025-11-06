@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar, Users, Sparkles, ArrowRight, Bell, MessageSquare, Star as StarIcon, Search, Zap, Target, TrendingUp, Music, Moon, Drama, Plane, Heart, Gamepad2, Briefcase, UtensilsCrossed } from "lucide-react";
 import Header from "@/components/layout/Header";
@@ -9,21 +10,7 @@ import { useScrollReveal } from "@/hooks/use-scroll-reveal";
 import { AnimatedCounter, AnimatedTitle, StaggeredCards } from "@/components/animations";
 import heroImage from "@/assets/hero-image.jpg";
 import studentsCollaboration from "@/assets/students-collaboration.jpg";
-import { useEffect, useState } from "react";
-import { getUsersCountRequest } from "@/api/users";
-import { getFeaturedEventsRequest } from "@/api/events";
-
-// Tipo para eventos del backend
-interface BackendEvento {
-  id: number;
-  titulo: string;
-  categoria?: { nombre: string };
-  fecha_inicio: string;
-  ubicacion: string;
-  aforo: number;
-  inscritos?: number;
-  imagen?: string;
-}
+import { getEventosStatsRequest, getUsuariosStatsRequest, getCategoriasStatsRequest, getEventosRequest } from "@/api/auth";
 
 const ScrollRevealSection = ({ children, className = "", direction = "up" }: { 
   children: React.ReactNode; 
@@ -51,70 +38,164 @@ const ScrollRevealSection = ({ children, className = "", direction = "up" }: {
   );
 };
 
-const Landing = () => {
-  const [featuredEvents, setFeaturedEvents] = useState([]);
-  const [loadingFeaturedEvents, setLoadingFeaturedEvents] = useState(true);
-  const [usuariosRegistrados, setUsuariosRegistrados] = useState(0);
-  const [totalEvents, setTotalEvents] = useState(0);
-  useEffect(() => {
-    const fetchUsersCount = async () => {
-      try {
-        const response = await getUsersCountRequest();
-        setUsuariosRegistrados(response.data.total);
-      } catch (error) {
-        console.error('Error al obtener el contador de usuarios:', error);
-      }
-    };
-  fetchUsersCount();
-  }, []);
+// Interface para eventos del backend
+interface EventoBackend {
+  id: number;
+  titulo: string;
+  descripcion: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  aforo: number;
+  ubicacion: string;
+  foto: string | null;
+  categoria: {
+    id: number;
+    nombre: string;
+  } | null;
+  numero_inscritos: number;
+}
 
+const Landing = () => {
+  // Estados para las estadísticas
+  const [eventosStats, setEventosStats] = useState({ total_eventos: 0, eventos_proximos: 0 });
+  const [usuariosStats, setUsuariosStats] = useState({ total_usuarios: 0 });
+  const [categoriasStats, setCategoriasStats] = useState({ total_categorias: 0 });
+  
+  // Estado para eventos destacados (los 3 con mayor número de inscritos)
+  const [featuredEvents, setFeaturedEvents] = useState<any[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+
+  // Cargar estadísticas al montar el componente
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchStats = async () => {
       try {
-        setLoadingFeaturedEvents(true);
-        const response = await getFeaturedEventsRequest(3);
+        // Hacer las tres llamadas en paralelo
+        const [eventosResponse, usuariosResponse, categoriasResponse] = await Promise.all([
+          getEventosStatsRequest(),
+          getUsuariosStatsRequest(),
+          getCategoriasStatsRequest()
+        ]);
         
-        console.log('✅ Eventos recibidos:', response.data);
+        console.log('📊 Respuesta de eventos:', eventosResponse.data);
+        console.log('👥 Respuesta de usuarios:', usuariosResponse.data);
+        console.log('📁 Respuesta de categorías:', categoriasResponse.data);
         
-        // La respuesta puede venir como { results: [...], count: N } o directamente [...]
-        const eventosData = response.data.results || response.data || [];
-        
-        // Actualizar contador total si viene en la respuesta
-        if (response.data.count) {
-          setTotalEvents(response.data.count);
+        // Verificar que los datos tengan la estructura correcta
+        if (eventosResponse.data) {
+          const eventosData = {
+            total_eventos: eventosResponse.data.total_eventos ?? 0,
+            eventos_proximos: eventosResponse.data.eventos_proximos ?? 0
+          };
+          console.log('✅ Estableciendo eventosStats:', eventosData);
+          setEventosStats(eventosData);
         }
         
-        // Mapear datos del backend al formato del frontend
-        const mappedEvents = eventosData.map((evento: BackendEvento) => ({
-          id: evento.id,
-          title: evento.titulo,
-          category: evento.categoria?.nombre || 'Sin categoría',
-          dateStart: evento.fecha_inicio,
-          time: new Date(evento.fecha_inicio).toLocaleTimeString('es-ES', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
-          location: evento.ubicacion,
-          capacity: evento.aforo,
-          registered: evento.inscritos || 0,
-          image: evento.imagen || '/placeholder.svg'
-        }));
+        if (usuariosResponse.data) {
+          const usuariosData = {
+            total_usuarios: usuariosResponse.data.total_usuarios ?? 0
+          };
+          console.log('✅ Estableciendo usuariosStats:', usuariosData);
+          setUsuariosStats(usuariosData);
+        }
         
-        setFeaturedEvents(mappedEvents);
-        console.log('✅ Eventos mapeados:', mappedEvents);
-        
+        if (categoriasResponse.data) {
+          const categoriasData = {
+            total_categorias: categoriasResponse.data.total_categorias ?? 0
+          };
+          console.log('✅ Estableciendo categoriasStats:', categoriasData);
+          setCategoriasStats(categoriasData);
+        }
       } catch (error) {
-        console.error('❌ Error al obtener eventos:', error);
-        // Fallback a mockEvents si falla la API
-        setFeaturedEvents(mockEvents.slice(0, 3));
-      } finally {
-        setLoadingFeaturedEvents(false);
+        console.error('Error al cargar estadísticas:', error);
+        console.error('Detalles del error:', error.response?.data || error.message);
+        // Mantener valores por defecto en caso de error
       }
     };
-    
-    fetchEvents();
+
+    fetchStats();
   }, []);
 
+  // Funciones helper para formatear datos del backend
+  // Formatear fecha: "2024-01-15T14:30:00Z" → "15 de enero, 2024"
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES', { 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  };
+
+  // Extraer hora: "2024-01-15T14:30:00Z" → "14:30"
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('es-ES', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
+  // Construir URL de imagen
+  const getImageUrl = (foto: string | null) => {
+    if (!foto) return undefined;
+    if (foto.startsWith('http')) return foto;
+    return `http://localhost:8000${foto}`;
+  };
+
+  // Cargar eventos destacados (3 con mayor número de inscritos)
+  useEffect(() => {
+    const fetchFeaturedEvents = async () => {
+      try {
+        setLoadingEvents(true);
+        // Paso 1: Obtener todos los eventos del backend
+        const response = await getEventosRequest();
+        const eventosData = response.data.results || response.data;
+        const eventos = Array.isArray(eventosData) ? eventosData : [];
+        
+        // Paso 2: Ordenar por número de inscritos (mayor a menor)
+        const eventosOrdenados = eventos
+          .sort((a: EventoBackend, b: EventoBackend) => 
+            (b.numero_inscritos || 0) - (a.numero_inscritos || 0)
+          );
+        
+        // Paso 3: Tomar solo los primeros 3
+        const top3Eventos = eventosOrdenados.slice(0, 3);
+        
+        // Paso 4: Mapear al formato que espera EventCard
+        const eventosMapeados = top3Eventos.map((evento: EventoBackend) => ({
+          id: evento.id.toString(),
+          title: evento.titulo,
+          category: evento.categoria?.nombre || "Sin categoría",
+          date: formatDate(evento.fecha_inicio),
+          time: formatTime(evento.fecha_inicio),
+          location: evento.ubicacion,
+          capacity: evento.aforo,
+          registered: evento.numero_inscritos || 0,
+          image: getImageUrl(evento.foto)
+        }));
+        
+        setFeaturedEvents(eventosMapeados);
+      } catch (error) {
+        console.error('Error al cargar eventos destacados:', error);
+        // En caso de error, usar eventos mock como fallback
+        setFeaturedEvents(mockEvents.slice(0, 3).map(event => ({
+          id: event.id,
+          title: event.title,
+          category: event.category,
+          date: event.dateStart,
+          time: event.time,
+          location: event.location,
+          capacity: event.capacity,
+          registered: event.registered,
+          image: event.image
+        })));
+      } finally {
+        setLoadingEvents(false);
+      }
+    };
+
+    fetchFeaturedEvents();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -178,7 +259,7 @@ const Landing = () => {
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <AnimatedCounter 
-                    end={totalEvents}
+                    end={eventosStats.total_eventos || 0}
                     suffix="+"
                     className="text-4xl md:text-5xl font-extrabold text-white drop-shadow-lg"
                   />
@@ -189,7 +270,7 @@ const Landing = () => {
               <div className="text-center">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <AnimatedCounter 
-                    end={usuariosRegistrados}
+                    end={usuariosStats.total_usuarios || 0}
                     suffix="+"
                     className="text-4xl md:text-5xl font-extrabold text-white drop-shadow-lg"
                   />
@@ -217,7 +298,7 @@ const Landing = () => {
               <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift gradient-primary shadow-xl">
                 <Calendar className="h-14 w-14 mx-auto mb-4 text-white animate-float" />
                 <AnimatedCounter 
-                  end={totalEvents}
+                  end={eventosStats.eventos_proximos || 0}
                   className="text-5xl font-extrabold text-white mb-2"
                 />
                 <div className="text-lg text-white/90 font-medium">Eventos próximos</div>
@@ -228,7 +309,7 @@ const Landing = () => {
               <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift shadow-xl" style={{ background: 'linear-gradient(135deg, hsl(260 75% 60%) 0%, hsl(270 70% 65%) 100%)' }}>
                 <Users className="h-14 w-14 mx-auto mb-4 text-white animate-float" style={{ animationDelay: '0.5s' }} />
                 <AnimatedCounter 
-                  end={usuariosRegistrados}
+                  end={usuariosStats.total_usuarios || 0}
                   suffix="+"
                   className="text-5xl font-extrabold text-white mb-2"
                 />
@@ -240,7 +321,7 @@ const Landing = () => {
               <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift shadow-xl" style={{ background: 'linear-gradient(135deg, hsl(160 75% 50%) 0%, hsl(170 70% 55%) 100%)' }}>
                 <Zap className="h-14 w-14 mx-auto mb-4 text-white animate-float" style={{ animationDelay: '1s' }} />
                 <AnimatedCounter 
-                  end={6}
+                  end={categoriasStats.total_categorias || 0}
                   className="text-5xl font-extrabold text-white mb-2"
                   duration={1500}
                 />
@@ -254,7 +335,7 @@ const Landing = () => {
             <div className="text-center mb-10">
               <h3 className="text-2xl md:text-3xl font-extrabold text-foreground mb-2">
                 Explora por{" "}
-                <span className="bg-gradient-primary bg-clip-text text-transparent">
+                <span className="text-2xl md:text-3xl font-extrabold text-foreground mb-2">
                   Categoría
                 </span>
               </h3>
@@ -349,7 +430,7 @@ const Landing = () => {
               </div>
               <h2 className="text-4xl md:text-5xl font-extrabold text-foreground">
                 Características{" "}
-                <span className="bg-gradient-primary bg-clip-text text-transparent">
+                <span className="text-4xl md:text-5xl font-extrabold text-foreground">
                   principales
                 </span>
               </h2>
@@ -435,7 +516,7 @@ const Landing = () => {
                 </div>
                 <h2 className="text-4xl md:text-5xl font-extrabold mb-3 text-foreground">
                   Los más{" "}
-                  <span className="bg-gradient-primary bg-clip-text text-transparent">
+                  <span className="text-4xl md:text-5xl font-extrabold mb-3 text-foreground">
                     populares
                   </span>
                 </h2>
@@ -452,43 +533,33 @@ const Landing = () => {
             </div>
           </ScrollRevealSection>
           
-          <div className="grid md:grid-cols-3 gap-8">
-  {loadingFeaturedEvents ? (
-    // Skeleton loader mientras carga
-    [1, 2, 3].map((i) => (
-      <div key={i} className="animate-pulse">
-        <div className="bg-gray-200 dark:bg-gray-700 h-80 rounded-3xl"></div>
-      </div>
-    ))
-  ) : featuredEvents.length > 0 ? (
-    // Mostrar eventos reales
-    featuredEvents.map((event) => (
-      <ScrollRevealSection key={event.id} direction="scale">
-        <EventCard
-          id={event.id}
-          title={event.title}
-          category={event.category}
-          date={event.dateStart}
-          time={event.time}
-          location={event.location}
-          capacity={event.capacity}
-          registered={event.registered}
-          image={event.image}
-        />
-      </ScrollRevealSection>
-    ))
-  ) : (
-    // Si no hay eventos
-    <div className="col-span-3 text-center py-12">
-      <p className="text-xl text-muted-foreground">
-        No hay eventos disponibles en este momento 📅
-      </p>
-      <p className="text-sm text-muted-foreground mt-2">
-        Pronto habrá nuevos eventos increíbles
-      </p>
-    </div>
-  )}
-</div>
+          {loadingEvents ? (
+            <div className="text-center py-16">
+              <p className="text-muted-foreground">Cargando eventos destacados...</p>
+            </div>
+          ) : featuredEvents.length > 0 ? (
+            <div className="grid md:grid-cols-3 gap-8">
+              {featuredEvents.map((event) => (
+                <ScrollRevealSection key={event.id} direction="scale">
+                  <EventCard
+                    id={event.id}
+                    title={event.title}
+                    category={event.category}
+                    date={event.date}
+                    time={event.time}
+                    location={event.location}
+                    capacity={event.capacity}
+                    registered={event.registered}
+                    image={event.image}
+                  />
+                </ScrollRevealSection>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-16">
+              <p className="text-muted-foreground">No hay eventos disponibles</p>
+            </div>
+          )}
           
           <div className="text-center mt-12">
             <Button 
@@ -528,7 +599,7 @@ const Landing = () => {
                 </div>
                 <h2 className="text-4xl md:text-5xl font-extrabold text-foreground">
                   Conecta con{" "}
-                  <span className="bg-gradient-secondary bg-clip-text text-transparent">
+                  <span className="text-4xl md:text-5xl font-extrabold text-foreground">
                     tu comunidad
                   </span>
                 </h2>
