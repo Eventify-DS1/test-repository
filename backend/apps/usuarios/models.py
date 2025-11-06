@@ -9,11 +9,7 @@ class Rol(models.Model):
 
 
 class Usuario(AbstractUser):
-    ESTADOS_CUENTA = [
-        ('pendiente', 'Pendiente'),
-        ('verificada', 'Verificada'),
-        ('bloqueada', 'Bloqueada'),
-    ]
+    
 
     # Sobrescribimos el email del AbstractUser
     email = models.EmailField(unique=True)
@@ -21,11 +17,7 @@ class Usuario(AbstractUser):
     carrera = models.CharField(max_length=100, null=True, blank=True)
     facultad = models.CharField(max_length=100, null=True, blank=True)
     foto = models.ImageField(upload_to='usuarios/', null=True, blank=True)
-    estado_cuenta = models.CharField(
-        max_length=20,
-        choices=ESTADOS_CUENTA,
-        default='pendiente'
-    )
+    codigo_estudiantil = models.CharField(max_length=10, null=True, blank=True)
     rol = models.ForeignKey(Rol, on_delete=models.PROTECT, related_name='usuarios',
                             null=False, blank= False, default=1)
 

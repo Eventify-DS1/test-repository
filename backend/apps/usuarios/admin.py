@@ -10,9 +10,9 @@ class RolAdmin(admin.ModelAdmin):
 @admin.register(Usuario)
 class UsuarioAdmin(UserAdmin):
     # Campos adicionales que se mostrarán en el admin
-    list_display = ['username', 'email', 'first_name', 'last_name', 'rol', 'estado_cuenta', 'carrera', 'facultad']
-    list_filter = ['rol', 'estado_cuenta', 'carrera', 'facultad', 'is_staff', 'is_active']
-    search_fields = ['username', 'email', 'first_name', 'last_name', 'carrera', 'facultad']
+    list_display = ['username', 'email', 'first_name', 'last_name', 'rol', 'codigo_estudiantil', 'carrera', 'facultad']
+    list_filter = ['rol', 'carrera', 'facultad']
+    search_fields = ['username', 'email', 'first_name', 'last_name', 'carrera', 'facultad', 'codigo_estudiantil']
     
     # Campos que se pueden editar
     fieldsets = UserAdmin.fieldsets + (

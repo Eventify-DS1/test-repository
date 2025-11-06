@@ -61,7 +61,7 @@ const EventDetail = () => {
         setLoading(true);
         const response = await getEventoByIdRequest(id);
         setEvento(response.data);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error al cargar evento:', error);
         setError("No se pudo cargar el evento");
       } finally {

@@ -1,7 +1,7 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Calendar, Users, Sparkles, ArrowRight, Bell, MessageSquare, Star as StarIcon, Search, Zap, Target, TrendingUp, Music, Moon, Drama, Plane, Heart, Gamepad2, Briefcase, UtensilsCrossed } from "lucide-react";
+import { Calendar, Users, Sparkles, ArrowRight, Bell, MessageSquare, Star as StarIcon, Search, Zap, Target, TrendingUp, Music, Moon, Drama, Plane, Heart, Gamepad2, Briefcase, UtensilsCrossed, GraduationCap, Palette } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import EventCard from "@/components/events/EventCard";
@@ -10,7 +10,8 @@ import { useScrollReveal } from "@/hooks/use-scroll-reveal";
 import { AnimatedCounter, AnimatedTitle, StaggeredCards } from "@/components/animations";
 import heroImage from "@/assets/hero-image.jpg";
 import studentsCollaboration from "@/assets/students-collaboration.jpg";
-import { getEventosStatsRequest, getUsuariosStatsRequest, getCategoriasStatsRequest, getEventosRequest } from "@/api/auth";
+import { getEventosStatsRequest, getUsuariosStatsRequest, getCategoriasStatsRequest, getEventosRequest, getCategoriasRequest } from "@/api/auth";
+import { getCategoryIcon } from "@/utils/categoryIcons";
 
 const ScrollRevealSection = ({ children, className = "", direction = "up" }: { 
   children: React.ReactNode; 
@@ -55,15 +56,40 @@ interface EventoBackend {
   numero_inscritos: number;
 }
 
+// Interface para eventos mapeados para EventCard
+interface FeaturedEvent {
+  id: string;
+  title: string;
+  category: string;
+  date: string;
+  time: string;
+  location: string;
+  capacity: number;
+  registered: number;
+  image?: string;
+}
+
+// Interface para categorías
+interface Categoria {
+  id: number;
+  nombre: string;
+}
+
 const Landing = () => {
+  const navigate = useNavigate();
+  
   // Estados para las estadísticas
   const [eventosStats, setEventosStats] = useState({ total_eventos: 0, eventos_proximos: 0 });
   const [usuariosStats, setUsuariosStats] = useState({ total_usuarios: 0 });
   const [categoriasStats, setCategoriasStats] = useState({ total_categorias: 0 });
   
   // Estado para eventos destacados (los 3 con mayor número de inscritos)
-  const [featuredEvents, setFeaturedEvents] = useState<any[]>([]);
+  const [featuredEvents, setFeaturedEvents] = useState<FeaturedEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
+  
+  // Estado para categorías
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [loadingCategorias, setLoadingCategorias] = useState(true);
 
   // Cargar estadísticas al montar el componente
   useEffect(() => {
@@ -196,6 +222,30 @@ const Landing = () => {
 
     fetchFeaturedEvents();
   }, []);
+
+  // Cargar categorías del backend
+  useEffect(() => {
+    const fetchCategorias = async () => {
+      try {
+        setLoadingCategorias(true);
+        const response = await getCategoriasRequest();
+        const categoriasData = response.data.results || response.data;
+        setCategorias(Array.isArray(categoriasData) ? categoriasData : []);
+      } catch (error) {
+        console.error('Error al cargar categorías:', error);
+        setCategorias([]);
+      } finally {
+        setLoadingCategorias(false);
+      }
+    };
+
+    fetchCategorias();
+  }, []);
+
+  // Función para manejar click en categoría
+  const handleCategoryClick = (categoriaId: number) => {
+    navigate(`/eventos?categoria=${categoriaId}`);
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -343,79 +393,42 @@ const Landing = () => {
             </div>
           </ScrollRevealSection>
 
-          <div className="flex flex-wrap justify-center gap-6 md:gap-10">
-            <ScrollRevealSection direction="scale">
-              <div className="flex flex-col items-center group cursor-pointer">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-primary/20 group-hover:border-primary">
-                  <Music className="h-8 w-8 text-primary" />
-                </div>
-                <span className="text-xs font-semibold text-foreground/80 group-hover:text-primary transition-colors">Música</span>
-              </div>
-            </ScrollRevealSection>
+          {loadingCategorias ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Cargando categorías...</p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap justify-center gap-6 md:gap-10">
+              {categorias.map((categoria) => {
+                const { icon: Icon, color } = getCategoryIcon(categoria.nombre);
+                const colorClasses = {
+                  primary: "from-primary/20 to-primary/10 border-primary/20 group-hover:border-primary text-primary",
+                  secondary: "from-secondary/20 to-secondary/10 border-secondary/20 group-hover:border-secondary text-secondary",
+                  accent: "from-accent/20 to-accent/10 border-accent/20 group-hover:border-accent text-accent"
+                };
 
-            <ScrollRevealSection direction="scale">
-              <div className="flex flex-col items-center group cursor-pointer">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-secondary/20 to-secondary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-secondary/20 group-hover:border-secondary">
-                  <Moon className="h-8 w-8 text-secondary" />
-                </div>
-                <span className="text-xs font-semibold text-foreground/80 group-hover:text-secondary transition-colors">Vida nocturna</span>
-              </div>
-            </ScrollRevealSection>
-
-            <ScrollRevealSection direction="scale">
-              <div className="flex flex-col items-center group cursor-pointer">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-accent/20 to-accent/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-accent/20 group-hover:border-accent">
-                  <Drama className="h-8 w-8 text-accent" />
-                </div>
-                <span className="text-xs font-semibold text-foreground/80 group-hover:text-accent transition-colors">Artes escénicas</span>
-              </div>
-            </ScrollRevealSection>
-
-            <ScrollRevealSection direction="scale">
-              <div className="flex flex-col items-center group cursor-pointer">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-primary/20 group-hover:border-primary">
-                  <Plane className="h-8 w-8 text-primary" />
-                </div>
-                <span className="text-xs font-semibold text-foreground/80 group-hover:text-primary transition-colors">Vacaciones</span>
-              </div>
-            </ScrollRevealSection>
-
-            <ScrollRevealSection direction="scale">
-              <div className="flex flex-col items-center group cursor-pointer">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-secondary/20 to-secondary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-secondary/20 group-hover:border-secondary">
-                  <Heart className="h-8 w-8 text-secondary" />
-                </div>
-                <span className="text-xs font-semibold text-foreground/80 group-hover:text-secondary transition-colors">Citas</span>
-              </div>
-            </ScrollRevealSection>
-
-            <ScrollRevealSection direction="scale">
-              <div className="flex flex-col items-center group cursor-pointer">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-accent/20 to-accent/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-accent/20 group-hover:border-accent">
-                  <Gamepad2 className="h-8 w-8 text-accent" />
-                </div>
-                <span className="text-xs font-semibold text-foreground/80 group-hover:text-accent transition-colors">Aficiones</span>
-              </div>
-            </ScrollRevealSection>
-
-            <ScrollRevealSection direction="scale">
-              <div className="flex flex-col items-center group cursor-pointer">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-primary/20 group-hover:border-primary">
-                  <Briefcase className="h-8 w-8 text-primary" />
-                </div>
-                <span className="text-xs font-semibold text-foreground/80 group-hover:text-primary transition-colors">Negocios</span>
-              </div>
-            </ScrollRevealSection>
-
-            <ScrollRevealSection direction="scale">
-              <div className="flex flex-col items-center group cursor-pointer">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-secondary/20 to-secondary/10 flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 border-secondary/20 group-hover:border-secondary">
-                  <UtensilsCrossed className="h-8 w-8 text-secondary" />
-                </div>
-                <span className="text-xs font-semibold text-foreground/80 group-hover:text-secondary transition-colors">Gastronomía</span>
-              </div>
-            </ScrollRevealSection>
-          </div>
+                return (
+                  <ScrollRevealSection key={categoria.id} direction="scale">
+                    <div 
+                      className="flex flex-col items-center group cursor-pointer"
+                      onClick={() => handleCategoryClick(categoria.id)}
+                    >
+                      <div className={`w-20 h-20 rounded-full bg-gradient-to-br flex items-center justify-center mb-2 group-hover:scale-110 group-hover:shadow-xl transition-all duration-300 border-2 ${colorClasses[color]}`}>
+                        <Icon className="h-8 w-8" />
+                      </div>
+                      <span className={`text-xs font-semibold text-foreground/80 transition-colors ${
+                        color === "primary" ? "group-hover:text-primary" :
+                        color === "secondary" ? "group-hover:text-secondary" :
+                        "group-hover:text-accent"
+                      }`}>
+                        {categoria.nombre}
+                      </span>
+                    </div>
+                  </ScrollRevealSection>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
