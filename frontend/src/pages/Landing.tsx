@@ -217,7 +217,7 @@ const Landing = () => {
               <div className="relative overflow-hidden rounded-3xl p-10 text-center hover-lift gradient-primary shadow-xl">
                 <Calendar className="h-14 w-14 mx-auto mb-4 text-white animate-float" />
                 <AnimatedCounter 
-                  end={48}
+                  end={totalEvents}
                   className="text-5xl font-extrabold text-white mb-2"
                 />
                 <div className="text-lg text-white/90 font-medium">Eventos próximos</div>

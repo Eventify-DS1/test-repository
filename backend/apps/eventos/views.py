@@ -2,6 +2,7 @@ from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from .models import Evento, CategoriaEvento, Inscripcion
+from rest_framework.decorators import action
 from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer
 
 
@@ -12,11 +13,26 @@ class CategoriaEventoViewSet(viewsets.ModelViewSet):
     """
     queryset = CategoriaEvento.objects.all()
     serializer_class = CategoriaEventoSerializer
-    #permission_classes = [IsAuthenticated]
 
     search_fields = ['nombre']
     ordering_fields = ['nombre']
     ordering = ['nombre']
+
+    def get_permissions(self):
+        """
+        Permisos personalizados:
+        - list, retrieve, count_categories: cualquiera puede ver (AllowAny)
+        - create, update, destroy: solo usuarios autenticados
+        """
+        if self.action in ['list', 'retrieve', 'count_categories']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def count_categories(self, request):
+        """Retorna el total de categorías disponibles."""
+        total = CategoriaEvento.objects.count()
+        return Response({'total': total})
 
     
 
