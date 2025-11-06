@@ -49,11 +49,14 @@
     try {
       const response = await createEventRequest(formData);
       console.log("Evento creado:", response.data);
+      toast.success("Evento creado exitosamente");
       form.reset();
       setCategory("");
     } catch (error: any) {
       if (error.response) {
+        console.error("Error completo:", error.response);
         console.error("Error al crear evento:", error.response.data);
+        console.error("Status:", error.response.status);
         toast.error(`Error: ${JSON.stringify(error.response.data)}`);
       } else {
         console.error("Error desconocido:", error);
