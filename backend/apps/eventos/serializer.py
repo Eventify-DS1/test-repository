@@ -71,13 +71,6 @@ class EventoSerializer(serializers.ModelSerializer):
         source='categoria',
         write_only=True
     )
-
-    # Campo para escritura (permite asignar el organizador por su ID)
-    organizador_id = serializers.PrimaryKeyRelatedField(
-        queryset=Usuario.objects.all(),
-        source='organizador',
-        write_only=True
-    )
     
     # Campo para lectura (devuelve los datos del organizador)
     organizador = OrganizadorSerializer(read_only=True)
@@ -100,7 +93,6 @@ class EventoSerializer(serializers.ModelSerializer):
             'ubicacion',
             'foto',
             'organizador',  # Para lectura (devuelve objeto con nombre)
-            'organizador_id',  # Para escritura (acepta solo ID)
             'categoria',
             'categoria_id',
             'numero_inscritos',  # Número total de inscritos
@@ -139,19 +131,16 @@ class EventoSerializer(serializers.ModelSerializer):
         return attrs
 
     # === Creación personalizada ===
-    """
-    Cuando tengamos hecho la autenticacion, descomentar el metodo
+    
     def create(self, validated_data):
-        
-        Crea un evento asignando automáticamente el organizador
-        a partir del usuario autenticado en el contexto de la petición.
-        
+       # Crea un evento asignando automáticamente el organizador
+       # a partir del usuario autenticado en el contexto de la petición.
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             validated_data['organizador'] = request.user
         return Evento.objects.create(**validated_data)
 
-    """
+    
 
     # ==========================================================
     # Si hay sesión, probar con lo siguiente:
@@ -194,11 +183,13 @@ class InscripcionSerializer(serializers.ModelSerializer):
         return Inscripcion.objects.create(**validated_data)
 
     def validate(self, attrs):
-        usuario = attrs.get('usuario')
+        request = self.context.get('request')
+        usuario = request.user if request and hasattr(request, 'user') else attrs.get('usuario')
         evento = attrs.get('evento')
-        if Inscripcion.objects.filter(usuario=usuario, evento=evento).exists():
+        if usuario and evento and Inscripcion.objects.filter(usuario=usuario, evento=evento).exists():
             raise serializers.ValidationError("Este usuario ya está inscrito en el evento.")
         return attrs
+
     
 
 class InscripcionDetalleSerializer(serializers.ModelSerializer):

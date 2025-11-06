@@ -26,7 +26,8 @@ class Usuario(AbstractUser):
         choices=ESTADOS_CUENTA,
         default='pendiente'
     )
-    rol = models.ForeignKey(Rol, on_delete=models.PROTECT, related_name='usuarios')
+    rol = models.ForeignKey(Rol, on_delete=models.PROTECT, related_name='usuarios',
+                            null=False, blank= False, default=1)
 
     USERNAME_FIELD = 'username'        # Usamos el username para login (por ahora)
     REQUIRED_FIELDS = ['email']        # Email será obligatorio
