@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Calendar, MapPin, Users } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,14 @@ const EventCard = ({
   registered,
   image,
 }: EventCardProps) => {
+  const location_hook = useLocation();
+  
+  // Detectar si estamos en el dashboard o en la vista pública
+  const isFromDashboard = location_hook.pathname.startsWith('/dashboard');
+  
+  // Determinar la ruta correcta según el contexto
+  const detailRoute = isFromDashboard ? `/dashboard/event/${id}` : `/event/${id}`;
+  
   const spotsLeft = capacity - registered;
   
   const getCategoryColor = (cat: string) => {
@@ -89,7 +97,7 @@ const EventCard = ({
       
       <CardFooter>
         <Button asChild className="w-full gradient-primary text-white border-0">
-          <Link to={`/event/${id}`}>Ver detalles</Link>
+          <Link to={detailRoute}>Ver detalles</Link>
         </Button>
       </CardFooter>
     </Card>
