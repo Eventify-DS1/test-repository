@@ -9,9 +9,6 @@ import EventsList from "./pages/EventsList";
 import Dashboard from "./pages/Dashboard";
 import Search from "./pages/Search";
 import CreateEvent from "./pages/CreateEvent";
-import Reports from "./pages/Reports";
-import Notifications from "./pages/Notifications";
-import RateEvents from "./pages/RateEvents";
 import Profile from "./pages/Profile";
 import EventDetail from "./pages/EventDetail";
 import NotFound from "./pages/NotFound";
@@ -35,9 +32,6 @@ const App = () => {
           <Route path="/dashboard/search" element={<Search />} />
           <Route path="/dashboard/event/:id" element={<EventDetail />} /> 
           <Route path="/dashboard/create" element={<CreateEvent />} />
-          <Route path="/dashboard/reports" element={<Reports />} />
-          <Route path="/dashboard/notifications" element={<Notifications />} />
-          <Route path="/dashboard/rate" element={<RateEvents />} />
           <Route path="/dashboard/profile" element={<Profile />} />
           <Route path="/register" element={<RegisterPage />}/>
           <Route path="/login" element={<LoginPage />}/>

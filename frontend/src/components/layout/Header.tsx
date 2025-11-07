@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "react-router-dom";
-import { Calendar } from "lucide-react";
 
 const Header = () => {
   const location = useLocation();
@@ -16,12 +15,7 @@ const Header = () => {
       <div className="container flex h-16 items-center justify-between gap-4">
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 flex-shrink-0">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
-            <Calendar className="h-6 w-6 text-white" />
-          </div>
-          <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Eventify
-          </span>
+          <img src="/branding/logo.png" alt="Eventify" className="h-10 w-auto" />
         </Link>
         
         {/* Navigation Links */}

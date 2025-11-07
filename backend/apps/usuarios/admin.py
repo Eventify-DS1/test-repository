@@ -17,13 +17,13 @@ class UsuarioAdmin(UserAdmin):
     # Campos que se pueden editar
     fieldsets = UserAdmin.fieldsets + (
         ('Información adicional', {
-            'fields': ('carrera', 'facultad', 'foto', 'estado_cuenta', 'rol')
+            'fields': ('carrera', 'facultad', 'foto', 'codigo_estudiantil', 'rol')
         }),
     )
     
     # Campos para crear nuevo usuario
     add_fieldsets = UserAdmin.add_fieldsets + (
         ('Información adicional', {
-            'fields': ('email', 'carrera', 'facultad', 'estado_cuenta', 'rol')
+            'fields': ('email', 'carrera', 'facultad', 'codigo_estudiantil', 'rol')
         }),
     )

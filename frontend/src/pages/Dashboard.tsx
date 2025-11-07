@@ -2,16 +2,126 @@ import Sidebar from "@/components/layout/Sidebar";
 import { Input } from "@/components/ui/input";
 import { Search, Calendar, Clock, TrendingUp, Sparkles } from "lucide-react";
 import EventCard from "@/components/events/EventCard";
-import { mockEvents } from "@/data/mockEvents";
 import { Button } from "@/components/ui/button";
-import { Link } from "react-router-dom";
-import { getUsersCountRequest } from '../api/users';
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getEventosRequest } from "@/api/auth";
+
+// Interface para eventos del backend
+interface EventoBackend {
+  id: number;
+  titulo: string;
+  descripcion: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  aforo: number;
+  ubicacion: string;
+  foto: string | null;
+  categoria: {
+    id: number;
+    nombre: string;
+  } | null;
+  numero_inscritos: number;
+}
+
+// Interface para eventos mapeados para EventCard
+interface EventoMapeado {
+  id: string;
+  title: string;
+  category: string;
+  date: string;
+  time: string;
+  location: string;
+  capacity: number;
+  registered: number;
+  image?: string;
+}
 
 const Dashboard = () => {
-  const upcomingEvents = mockEvents.slice(0, 4);
-  const pastEvents = mockEvents.slice(4, 6);
-  const [usuariosActivos, setUsuariosActivos] = useState(0);
+  const [upcomingEvents, setUpcomingEvents] = useState<EventoMapeado[]>([]);
+  const [allEvents, setAllEvents] = useState<EventoMapeado[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Funciones helper para formatear datos del backend
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES', { 
+      day: 'numeric', 
+      month: 'long', 
+      year: 'numeric' 
+    });
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString('es-ES', { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  };
+
+  const getImageUrl = (foto: string | null) => {
+    if (!foto) return undefined;
+    if (foto.startsWith('http')) return foto;
+    return `http://localhost:8000${foto}`;
+  };
+
+  // Cargar eventos del backend
+  useEffect(() => {
+    const fetchEventos = async () => {
+      try {
+        setLoading(true);
+        const response = await getEventosRequest();
+        const eventosData = response.data.results || response.data;
+        const eventos = Array.isArray(eventosData) ? eventosData : [];
+        
+        // Mapear eventos al formato que espera EventCard
+        const eventosMapeados: EventoMapeado[] = eventos.map((evento: EventoBackend) => ({
+          id: evento.id.toString(),
+          title: evento.titulo,
+          category: evento.categoria?.nombre || "Sin categoría",
+          date: formatDate(evento.fecha_inicio),
+          time: formatTime(evento.fecha_inicio),
+          location: evento.ubicacion,
+          capacity: evento.aforo,
+          registered: evento.numero_inscritos || 0,
+          image: getImageUrl(evento.foto)
+        }));
+
+        // Filtrar eventos próximos (fecha_inicio >= hoy)
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        
+        const eventosProximos = eventos
+          .filter((evento: EventoBackend) => {
+            const fechaInicio = new Date(evento.fecha_inicio);
+            fechaInicio.setHours(0, 0, 0, 0);
+            return fechaInicio >= hoy;
+          })
+          .map((evento: EventoBackend) => ({
+            id: evento.id.toString(),
+            title: evento.titulo,
+            category: evento.categoria?.nombre || "Sin categoría",
+            date: formatDate(evento.fecha_inicio),
+            time: formatTime(evento.fecha_inicio),
+            location: evento.ubicacion,
+            capacity: evento.aforo,
+            registered: evento.numero_inscritos || 0,
+            image: getImageUrl(evento.foto)
+          }));
+
+        setUpcomingEvents(eventosProximos);
+        setAllEvents(eventosMapeados);
+      } catch (error) {
+        console.error('Error al cargar eventos:', error);
+        setUpcomingEvents([]);
+        setAllEvents([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEventos();
+  }, []);
 
   return (
     <div className="flex min-h-screen w-full">
@@ -52,7 +162,7 @@ const Dashboard = () => {
                   <Clock className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-secondary">{pastEvents.length}</div>
+                  <div className="text-2xl font-bold text-secondary">0</div>
                   <div className="text-xs text-muted-foreground font-medium">Asistidos</div>
                 </div>
               </div>
@@ -62,7 +172,7 @@ const Dashboard = () => {
                   <TrendingUp className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-accent">+{upcomingEvents.length + pastEvents.length}</div>
+                  <div className="text-2xl font-bold text-accent">0</div>
                   <div className="text-xs text-muted-foreground font-medium">Total participación</div>
                 </div>
               </div>
@@ -90,23 +200,33 @@ const Dashboard = () => {
             </div>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {upcomingEvents.map((event) => (
-              <div key={event.id} className="hover-lift">
-                <EventCard
-                  id={event.id}
-                  title={event.title}
-                  category={event.category}
-                  date={event.dateStart}
-                  time={event.time}
-                  location={event.location}
-                  capacity={event.capacity}
-                  registered={event.registered}
-                  image={event.image}
-                />
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Cargando eventos...</p>
+            </div>
+          ) : upcomingEvents.length > 0 ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {upcomingEvents.map((event) => (
+                <div key={event.id} className="hover-lift">
+                  <EventCard
+                    id={event.id}
+                    title={event.title}
+                    category={event.category}
+                    date={event.date}
+                    time={event.time}
+                    location={event.location}
+                    capacity={event.capacity}
+                    registered={event.registered}
+                    image={event.image}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No hay eventos próximos disponibles</p>
+            </div>
+          )}
         </section>
 
         {/* Past Events - Más Llamativo */}
@@ -118,37 +238,49 @@ const Dashboard = () => {
               </div>
               <h2 className="text-2xl md:text-3xl font-bold">Eventos Asistidos</h2>
             </div>
-            
-            <Button 
-              asChild 
-              className="gradient-accent text-white border-0 hover-glow hover:scale-105 transition-bounce"
+            <Button
+              disabled
+              className="gradient-accent text-white border-0 opacity-60 cursor-not-allowed"
             >
-              <Link to="/dashboard/rate">
-                <Sparkles className="mr-2 h-4 w-4" />
-                Calificar eventos
-              </Link>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Calificar eventos
             </Button>
           </div>
           
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {pastEvents.map((event) => (
-              <div key={event.id} className="relative hover-lift">
-                <EventCard
-                  id={event.id}
-                  title={event.title}
-                  category={event.category}
-                  date={event.dateStart}
-                  time={event.time}
-                  location={event.location}
-                  capacity={event.capacity}
-                  registered={event.registered}
-                  image={event.image}
-                />
-                <div className="absolute top-2 right-2 px-3 py-1 rounded-full bg-secondary/90 text-white text-xs font-bold shadow-soft">
-                  Finalizado
+          {loading ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Cargando eventos...</p>
+            </div>
+          ) : allEvents.length > 0 ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {allEvents.map((event) => (
+                <div key={event.id} className="hover-lift">
+                  <EventCard
+                    id={event.id}
+                    title={event.title}
+                    category={event.category}
+                    date={event.date}
+                    time={event.time}
+                    location={event.location}
+                    capacity={event.capacity}
+                    registered={event.registered}
+                    image={event.image}
+                  />
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No hay eventos disponibles</p>
+            </div>
+          )}
+
+          <div className="mt-8 rounded-2xl border border-dashed border-muted-foreground/40 bg-muted/30 p-6 text-center">
+            <Sparkles className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
+            <h3 className="text-lg font-semibold">Próximamente</h3>
+            <p className="text-sm text-muted-foreground">
+              Muy pronto podrás visualizar tus eventos asistidos y dejar calificaciones desde aquí.
+            </p>
           </div>
         </section>
       </main>

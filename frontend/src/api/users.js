@@ -13,3 +13,13 @@ export const getUserByIdRequest = (id) => {
 export const updateUserRequest = (id, userData) => {
   return apiClient.put(`/users-utils/usuarios/${id}/`, userData);
 };
+
+// Obtener el usuario actual autenticado
+export const getCurrentUserRequest = () => {
+  return apiClient.get('/users-utils/usuarios/me/');
+};
+
+// Actualizar el usuario actual
+export const updateCurrentUserRequest = (userData) => {
+  return apiClient.patch('/users-utils/usuarios/me/', userData);
+};

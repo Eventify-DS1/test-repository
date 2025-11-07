@@ -32,6 +32,11 @@ class RolViewSet(viewsets.ModelViewSet):
     ordering_fields = ['nombre']
     ordering = ['nombre']
 
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return super().get_permissions()
+
 class UsuarioViewSet(viewsets.ModelViewSet):
     """
     ViewSet para el modelo Usuario.
@@ -41,7 +46,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
 
-    filterset_fields = ['rol', 'estado_cuenta', 'facultad', 'carrera']
+    filterset_fields = ['rol', 'facultad', 'carrera']
 
     # Buscar por nombre, username o email
     search_fields = ['username', 'first_name', 'last_name', 'email']
@@ -99,7 +104,26 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         total = Usuario.objects.count()
         return Response({'total': total})
     
-    
+    @action(detail=False, methods=['get', 'patch'], permission_classes=[IsAuthenticated])
+    def me(self, request):
+        """
+        Endpoint para obtener y actualizar el usuario actual autenticado.
+        """
+        if request.method == 'GET':
+            serializer = self.get_serializer(request.user)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        
+        elif request.method == 'PATCH':
+            serializer = self.get_serializer(request.user, data=request.data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(
+                {
+                    "message": "Perfil actualizado correctamente.",
+                    "usuario": serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
 
     def perform_create(self, serializer):
         """

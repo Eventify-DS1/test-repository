@@ -14,6 +14,11 @@ function RegisterPage() {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
+    first_name: '',
+    last_name: '',
+    carrera: '',
+    facultad: '',
+    codigo_estudiantil: '',
     password: '',
     password2: '',
     rol: '1'
@@ -29,15 +34,27 @@ function RegisterPage() {
     const fetchRoles = async () => {
       try {
         const response = await getRolesRequest();
-        setRoles(response.data.results || response.data);
+        const rolesData = response.data.results || response.data;
+        const rolesArray = Array.isArray(rolesData) ? rolesData : [];
+        setRoles(rolesArray);
+        if (rolesArray.length > 0) {
+          setFormData((prev) => ({
+            ...prev,
+            rol: rolesArray[0].id.toString()
+          }));
+        }
       } catch (err) {
         console.error('Error al cargar roles:', err);
-        // Si falla, usar roles por defecto
-        setRoles([
+        const fallbackRoles = [
           { id: 1, nombre: 'Estudiante' },
           { id: 2, nombre: 'Profesor' },
           { id: 3, nombre: 'Admin' }
-        ]);
+        ];
+        setRoles(fallbackRoles);
+        setFormData((prev) => ({
+          ...prev,
+          rol: fallbackRoles[0].id.toString()
+        }));
       } finally {
         setLoadingRoles(false);
       }
@@ -81,6 +98,11 @@ function RegisterPage() {
       const dataToSend = {
         username: formData.username,
         email: formData.email,
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        carrera: formData.carrera,
+        facultad: formData.facultad,
+        codigo_estudiantil: formData.codigo_estudiantil,
         password: formData.password,
         password2: formData.password2,
         rol: Number(formData.rol)
@@ -101,6 +123,8 @@ function RegisterPage() {
         setError(`Contraseña: ${Array.isArray(errorData.password) ? errorData.password[0] : errorData.password}`);
       } else if (errorData?.rol) {
         setError(`Rol: ${Array.isArray(errorData.rol) ? errorData.rol[0] : errorData.rol}`);
+      } else if (errorData?.codigo_estudiantil) {
+        setError(`Código Estudiantil: ${Array.isArray(errorData.codigo_estudiantil) ? errorData.codigo_estudiantil[0] : errorData.codigo_estudiantil}`);
       } else {
         setError('Error al registrar. Inténtalo de nuevo.');
       }
@@ -153,6 +177,40 @@ function RegisterPage() {
                   className="h-12 text-base"
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="first_name" className="text-base font-medium">
+                  Nombre
+                </Label>
+                <Input
+                  id="first_name"
+                  name="first_name"
+                  type="text"
+                  placeholder="Tu nombre"
+                  value={formData.first_name}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                  className="h-12 text-base"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="last_name" className="text-base font-medium">
+                  Apellido
+                </Label>
+                <Input
+                  id="last_name"
+                  name="last_name"
+                  type="text"
+                  placeholder="Tu apellido"
+                  value={formData.last_name}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                  className="h-12 text-base"
+                />
+              </div>
               
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-base font-medium">
@@ -164,6 +222,57 @@ function RegisterPage() {
                   type="email"
                   placeholder="tu@email.com"
                   value={formData.email}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                  className="h-12 text-base"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="carrera" className="text-base font-medium">
+                  Carrera
+                </Label>
+                <Input
+                  id="carrera"
+                  name="carrera"
+                  type="text"
+                  placeholder="Tu carrera"
+                  value={formData.carrera}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                  className="h-12 text-base"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="facultad" className="text-base font-medium">
+                  Facultad
+                </Label>
+                <Input
+                  id="facultad"
+                  name="facultad"
+                  type="text"
+                  placeholder="Tu facultad"
+                  value={formData.facultad}
+                  onChange={handleChange}
+                  required
+                  disabled={loading}
+                  className="h-12 text-base"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="codigo_estudiantil" className="text-base font-medium">
+                  Código Estudiantil
+                </Label>
+                <Input
+                  id="codigo_estudiantil"
+                  name="codigo_estudiantil"
+                  type="text"
+                  placeholder="Tu código estudiantil"
+                  value={formData.codigo_estudiantil}
                   onChange={handleChange}
                   required
                   disabled={loading}
@@ -215,9 +324,7 @@ function RegisterPage() {
                   disabled={loading || loadingRoles}
                 >
                   <SelectTrigger className="h-12 text-base">
-                    <SelectValue placeholder="Selecciona tu rol">
-                      {loadingRoles ? 'Cargando roles...' : roles.find(r => r.id === Number(formData.rol))?.nombre || 'Selecciona tu rol'}
-                    </SelectValue>
+                    <SelectValue placeholder={loadingRoles ? 'Cargando roles...' : 'Selecciona tu rol'} />
                   </SelectTrigger>
                   <SelectContent>
                     {roles.map((rol) => (
