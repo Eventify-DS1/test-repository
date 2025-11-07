@@ -50,7 +50,6 @@ const CreateEvent = () => {
     checkAuth();
   }, [navigate]);
 
-  // Cargar categorías desde el backend
   useEffect(() => {
     const fetchCategorias = async () => {
       try {
@@ -104,9 +103,9 @@ const CreateEvent = () => {
       form.reset();
       setCategory("");
       
-      // Redirigir a la lista de eventos después de 1.5 segundos
+      // ✅ CAMBIO: Redirigir al dashboard/search (vista de usuario autenticado)
       setTimeout(() => {
-        navigate("/events");
+        navigate("/dashboard/search");
       }, 1500);
     } catch (error: any) {
       console.error("=== ERROR COMPLETO ===");
@@ -121,7 +120,6 @@ const CreateEvent = () => {
         } else if (error.response.status === 403) {
           toast.error("No tienes permisos para crear eventos.");
         } else if (error.response.data) {
-          // Mostrar errores específicos del backend
           const errorMessages = Object.entries(error.response.data)
             .map(([field, messages]) => {
               if (Array.isArray(messages)) {
@@ -297,7 +295,7 @@ const CreateEvent = () => {
                 <Button 
                   type="button" 
                   variant="outline"
-                  onClick={() => navigate("/events")}
+                  onClick={() => navigate("/dashboard/search")}
                   disabled={loading}
                 >
                   Cancelar
