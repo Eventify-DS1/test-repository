@@ -8,6 +8,7 @@ import Footer from "@/components/layout/Footer";
 import Sidebar from "@/components/layout/Sidebar";
 import eventPlaceholder from "@/assets/event-placeholder.jpg";
 import { getEventoByIdRequest, verifyTokenRequest } from "@/api/auth";
+import { getImageUrl } from "@/utils/imageHelpers";
 
 // Interface para los datos del backend
 interface Organizador {
@@ -106,12 +107,6 @@ const EventDetail = () => {
       hour: '2-digit', 
       minute: '2-digit' 
     });
-  };
-
-  const getImageUrl = (foto: string | null) => {
-    if (!foto) return undefined;
-    if (foto.startsWith('http')) return foto;
-    return `http://localhost:8000${foto}`;
   };
 
   const backRoute = isFromDashboard ? "/dashboard/search" : "/eventos";

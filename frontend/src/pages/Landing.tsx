@@ -12,6 +12,7 @@ import heroImage from "@/assets/hero-image.jpg";
 import studentsCollaboration from "@/assets/students-collaboration.jpg";
 import { getEventosStatsRequest, getUsuariosStatsRequest, getCategoriasStatsRequest, getEventosRequest, getCategoriasRequest } from "@/api/auth";
 import { getCategoryIcon } from "@/utils/categoryIcons";
+import { getImageUrl } from "@/utils/imageHelpers";
 
 const ScrollRevealSection = ({ children, className = "", direction = "up" }: { 
   children: React.ReactNode; 
@@ -159,13 +160,6 @@ const Landing = () => {
       hour: '2-digit', 
       minute: '2-digit' 
     });
-  };
-
-  // Construir URL de imagen
-  const getImageUrl = (foto: string | null) => {
-    if (!foto) return undefined;
-    if (foto.startsWith('http')) return foto;
-    return `http://localhost:8000${foto}`;
   };
 
   // Cargar eventos destacados (3 con mayor número de inscritos)

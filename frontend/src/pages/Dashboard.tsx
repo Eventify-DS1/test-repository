@@ -5,6 +5,7 @@ import EventCard from "@/components/events/EventCard";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { getEventosRequest } from "@/api/auth";
+import { getImageUrl } from "@/utils/imageHelpers";
 
 // Interface para eventos del backend
 interface EventoBackend {
@@ -57,12 +58,6 @@ const Dashboard = () => {
       hour: '2-digit', 
       minute: '2-digit' 
     });
-  };
-
-  const getImageUrl = (foto: string | null) => {
-    if (!foto) return undefined;
-    if (foto.startsWith('http')) return foto;
-    return `http://localhost:8000${foto}`;
   };
 
   // Cargar eventos del backend

@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getEventosStatsRequest, getEventosRequest, getCategoriasRequest } from "@/api/auth";
+import { getImageUrl } from "@/utils/imageHelpers";
 
 // Interface para los datos del backend
 interface Organizador {
@@ -230,7 +231,7 @@ const EventsList = () => {
                     location={evento.ubicacion}
                     capacity={evento.aforo}
                     registered={evento.numero_inscritos || 0}
-                    image={undefined}
+                    image={getImageUrl(evento.foto)}
                   />
                 </div>
               ))}

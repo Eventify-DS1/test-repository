@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { getEventosStatsRequest, getEventosRequest, getCategoriasRequest, verifyTokenRequest } from "@/api/auth";
 import { toast } from "sonner";
+import { getImageUrl } from "@/utils/imageHelpers";
 
 interface Organizador {
   id: number;
@@ -290,7 +291,7 @@ const Search = () => {
                     location={evento.ubicacion}
                     capacity={evento.aforo}
                     registered={evento.numero_inscritos || 0}
-                    image={undefined}
+                    image={getImageUrl(evento.foto)}
                   />
                 </div>
               ))}
