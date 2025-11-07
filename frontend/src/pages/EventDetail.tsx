@@ -1,12 +1,13 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, Clock, ArrowLeft } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import Sidebar from "@/components/layout/Sidebar";
 import eventPlaceholder from "@/assets/event-placeholder.jpg";
-import { getEventoByIdRequest } from "@/api/auth";
+import { getEventoByIdRequest, verifyTokenRequest } from "@/api/auth";
 
 // Interface para los datos del backend
 interface Organizador {
@@ -29,7 +30,7 @@ interface Evento {
   id: number;
   titulo: string;
   descripcion: string;
-  fecha_inicio: string;  // Formato: "2024-01-15T14:30:00Z"
+  fecha_inicio: string;
   fecha_fin: string;
   aforo: number;
   ubicacion: string;
@@ -45,9 +46,27 @@ interface Evento {
 
 const EventDetail = () => {
   const { id } = useParams();
+  const location = useLocation();
   const [evento, setEvento] = useState<Evento | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Detectar si viene del dashboard o es vista pública
+  const isFromDashboard = location.pathname.startsWith('/dashboard');
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        await verifyTokenRequest();
+        setIsAuthenticated(true);
+      } catch {
+        setIsAuthenticated(false);
+      }
+    };
+    
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     const fetchEvento = async () => {
@@ -72,7 +91,6 @@ const EventDetail = () => {
     fetchEvento();
   }, [id]);
 
-  // Formatear fecha: "2024-01-15T14:30:00Z" → "15 de enero, 2024"
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES', { 
@@ -82,7 +100,6 @@ const EventDetail = () => {
     });
   };
 
-  // Extraer hora: "2024-01-15T14:30:00Z" → "14:30"
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleTimeString('es-ES', { 
@@ -91,55 +108,46 @@ const EventDetail = () => {
     });
   };
 
-  // Construir URL de imagen (por ahora undefined, como pediste)
   const getImageUrl = (foto: string | null) => {
     if (!foto) return undefined;
     if (foto.startsWith('http')) return foto;
     return `http://localhost:8000${foto}`;
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
+  const backRoute = isFromDashboard ? "/dashboard/search" : "/eventos";
+
+  const EventContent = () => {
+    if (loading) {
+      return (
         <div className="container py-12 flex-1 flex items-center justify-center">
           <p className="text-muted-foreground">Cargando evento...</p>
         </div>
-        <Footer />
-      </div>
-    );
-  }
+      );
+    }
 
-  if (error || !evento) {
-    return (
-      <div className="min-h-screen flex flex-col">
-        <Header />
+    if (error || !evento) {
+      return (
         <div className="container py-12 flex-1 flex items-center justify-center">
           <div className="text-center">
             <p className="text-xl font-semibold mb-4">{error || "Evento no encontrado"}</p>
             <Button variant="outline" asChild>
-              <Link to="/eventos">
+              <Link to={backRoute}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Volver a eventos
               </Link>
             </Button>
           </div>
         </div>
-        <Footer />
-      </div>
-    );
-  }
+      );
+    }
 
-  const registered = evento.numero_inscritos || 0;
-  const spotsLeft = evento.aforo - registered;
+    const registered = evento.numero_inscritos || 0;
+    const spotsLeft = evento.aforo - registered;
 
-  return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      
-      <div className="container py-12 flex-1">
+    return (
+      <div className={isFromDashboard ? "p-8" : "container py-12"}>
         <Button variant="ghost" asChild className="mb-6">
-          <Link to="/eventos">
+          <Link to={backRoute}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Volver a eventos
           </Link>
@@ -224,20 +232,33 @@ const EventDetail = () => {
                   )}
                 </div>
 
-                <Button
-                  disabled
-                  className="w-full gradient-primary text-white border-0"
-                >
-                  Registrarse para asistir
-                </Button>
-                <p className="text-xs text-center text-muted-foreground mt-2">
-                  Solo disponible para usuarios registrados
-                </p>
+                {isAuthenticated ? (
+                  <Button
+                    disabled={spotsLeft <= 0}
+                    className="w-full gradient-primary text-white border-0"
+                  >
+                    {spotsLeft > 0 ? "Inscribirse al evento" : "Evento lleno"}
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      disabled
+                      className="w-full gradient-primary text-white border-0"
+                    >
+                      Registrarse para asistir
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground mt-2">
+                      Solo disponible para usuarios registrados
+                    </p>
+                  </>
+                )}
               </div>
 
               <div className="pt-4 border-t">
                 <p className="text-sm text-muted-foreground mb-2">Organizado por:</p>
-                <p className="font-semibold">{evento.organizador?.nombre_completo || evento.organizador?.username || 'Desconocido'}</p>
+                <p className="font-semibold">
+                  {evento.organizador?.nombre_completo || evento.organizador?.username || 'Desconocido'}
+                </p>
               </div>
 
               {evento.inscritos && evento.inscritos.length > 0 ? (
@@ -280,7 +301,25 @@ const EventDetail = () => {
           </div>
         </div>
       </div>
+    );
+  };
 
+  // Layout condicional: Si viene del dashboard, usa Sidebar; si no, usa Header+Footer
+  if (isFromDashboard) {
+    return (
+      <div className="flex min-h-screen w-full">
+        <Sidebar />
+        <main className="flex-1">
+          <EventContent />
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <Header />
+      <EventContent />
       <Footer />
     </div>
   );
