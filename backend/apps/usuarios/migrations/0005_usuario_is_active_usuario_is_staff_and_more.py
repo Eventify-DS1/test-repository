@@ -10,27 +10,35 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name="usuario",
-            name="is_active",
-            field=models.BooleanField(
-                default=True,
-                help_text="Designates whether this user should be treated as active. Unselect this instead of deleting accounts.",
-                verbose_name="active",
-            ),
-        ),
-        migrations.AddField(
-            model_name="usuario",
-            name="is_staff",
-            field=models.BooleanField(
-                default=False,
-                help_text="Designates whether the user can log into this admin site.",
-                verbose_name="staff status",
-            ),
-        ),
-        migrations.AlterField(
-            model_name="usuario",
-            name="codigo_estudiantil",
-            field=models.CharField(blank=True, max_length=10, null=True),
+        # is_active e is_staff ya existen (vienen de AbstractUser), no necesitan agregarse
+        # Solo modificamos codigo_estudiantil para quitarle unique
+        migrations.SeparateDatabaseAndState(
+            database_operations=[
+                # Quitar unique constraint de codigo_estudiantil si existe
+                migrations.RunSQL(
+                    sql="""
+                        DO $$ 
+                        BEGIN 
+                            IF EXISTS (
+                                SELECT 1 FROM information_schema.table_constraints 
+                                WHERE table_name='usuarios_usuario' 
+                                AND constraint_name LIKE '%codigo_estudiantil%unique%'
+                            ) THEN
+                                ALTER TABLE usuarios_usuario 
+                                DROP CONSTRAINT IF EXISTS usuarios_usuario_codigo_estudiantil_key;
+                            END IF;
+                        END $$;
+                    """,
+                    reverse_sql=migrations.RunSQL.noop,
+                ),
+            ],
+            state_operations=[
+                # Modificar el campo en el estado de Django (quitar unique)
+                migrations.AlterField(
+                    model_name="usuario",
+                    name="codigo_estudiantil",
+                    field=models.CharField(blank=True, max_length=10, null=True),
+                ),
+            ],
         ),
     ]
