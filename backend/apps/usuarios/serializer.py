@@ -60,13 +60,13 @@ class UsuarioSerializer(serializers.ModelSerializer):
             'carrera',
             'facultad',
             'foto',
-            'estado_cuenta',
+            'codigo_estudiantil',
             'rol',
             'rol_data',
             'password',
             'password2'
         ]
-        read_only_fields = ['estado_cuenta']
+        
 
     # === Validaciones personalizadas ===
     def validate(self, attrs):

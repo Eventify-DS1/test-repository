@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from rest_framework import viewsets, status
+from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -87,7 +88,16 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         if self.action in ['retrieve', 'update', 'partial_update']:
             return [IsAuthenticated(), IsOwnerOrAdmin()]
         
+        if self.action == 'count_users':  
+            return [AllowAny()]
         return [IsAuthenticated()]
+       
+
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def count_users(self, request):
+        """Retorna el total de usuarios registrados."""
+        total = Usuario.objects.count()
+        return Response({'total': total})
     
     
 

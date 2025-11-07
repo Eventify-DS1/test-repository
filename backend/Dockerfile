@@ -1,23 +1,24 @@
 # backend/Dockerfile
-
 FROM python:3.11-slim
 
-# Evitar que Python genere archivos .pyc y usar stdout sin buffer
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Instalar dependencias del sistema (si usas Postgres, necesitas psycopg2 deps)
-RUN apt-get update && apt-get install -y build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
+# Solo instalar libpq (runtime, no compilación)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libpq5 && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copiar requerimientos
+# Copiar requirements
 COPY requirements.txt /app/
 
-# Instalar dependencias de Python
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Instalar dependencias Python
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Copiar todo el proyecto
+# Copiar proyecto
 COPY . /app/
 
 EXPOSE 8000

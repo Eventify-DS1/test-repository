@@ -35,7 +35,7 @@ class Evento(models.Model):
     )
     categoria = models.ForeignKey(
         CategoriaEvento,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         null=True,
         related_name='eventos'
     )

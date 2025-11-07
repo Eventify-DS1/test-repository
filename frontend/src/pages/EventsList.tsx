@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Search, Filter } from "lucide-react";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -46,12 +47,21 @@ interface Categoria {
 }
 
 const EventsList = () => {
+  const [searchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [totalEventos, setTotalEventos] = useState(0);
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Leer categoría de la URL al montar
+  useEffect(() => {
+    const categoriaParam = searchParams.get('categoria');
+    if (categoriaParam) {
+      setCategoryFilter(categoriaParam);
+    }
+  }, [searchParams]);
 
   // Cargar estadísticas de eventos y categorías al montar el componente
   useEffect(() => {

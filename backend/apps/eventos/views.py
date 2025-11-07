@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from .models import Evento, CategoriaEvento, Inscripcion
 from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer
+from rest_framework.decorators import action
+from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer
 
 
 class CategoriaEventoViewSet(viewsets.ModelViewSet):
@@ -13,11 +15,27 @@ class CategoriaEventoViewSet(viewsets.ModelViewSet):
     """
     queryset = CategoriaEvento.objects.all()
     serializer_class = CategoriaEventoSerializer
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     search_fields = ['nombre']
     ordering_fields = ['nombre']
     ordering = ['nombre']
+
+    def get_permissions(self):
+        """
+        Permisos personalizados:
+        - list, retrieve, count_categories, estadisticas: cualquiera puede ver (AllowAny)
+        - create, update, destroy: solo usuarios autenticados
+        """
+        if self.action in ['list', 'retrieve', 'count_categories', 'estadisticas']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def count_categories(self, request):
+        """Retorna el total de categorías disponibles."""
+        total = CategoriaEvento.objects.count()
+        return Response({'total': total})
 
     @action(detail=False, methods=['get'], permission_classes=[AllowAny])
     def estadisticas(self, request):
@@ -31,28 +49,15 @@ class CategoriaEventoViewSet(viewsets.ModelViewSet):
         serializer = EstadisticasCategoriasSerializer(categoria)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
-    def get_permissions(self):
-        """
-        Define permisos según la acción:
-        - estadisticas: Abierto para cualquiera.
-        - Otras acciones: Permisos por defecto.
-        """
-        if self.action == 'estadisticas':
-            return [AllowAny()]
-        
-        return [AllowAny()]  # Por ahora todas las acciones son públicas
-
-    
 
 class EventoViewSet(viewsets.ModelViewSet):
     """
     ViewSet para el modelo Evento.
-    - Solo usuarios autenticados pueden crear eventos.
-    - El organizador se asigna automáticamente en perform_create(). Mi bombo
+    - Cualquier persona puede ver eventos (list, retrieve)
+    - Solo usuarios autenticados pueden crear/editar/eliminar eventos
     """
     queryset = Evento.objects.all()
     serializer_class = EventoSerializer
-    #permission_classes = [IsAuthenticated]
 
     # 🔍 Búsqueda textual
     search_fields = ['titulo', 'descripcion', 'ubicacion', 'categoria__nombre']
@@ -70,9 +75,7 @@ class EventoViewSet(viewsets.ModelViewSet):
         Endpoint para obtener estadísticas de eventos.
         Accesible públicamente sin autenticación.
         """
-        # Crear una instancia ficticia para el serializer
         evento = Evento.objects.first() if Evento.objects.exists() else None
-        
         serializer = EstadisticasEventosSerializer(evento)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -85,29 +88,20 @@ class EventoViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve', 'estadisticas']:
             return [AllowAny()]
         # Para create, update, destroy se usan los permisos por defecto
-        return [AllowAny()]  # Por ahora todas las acciones son públicas
+        return [IsAuthenticated()] 
 
     
 
 
-    
-    """
-    Cuando tengamos hecho la autenticacion, descomentar el metodo para obtener el organizador del solicitante
-
-    def perform_create(self, serializer):
-        
-        Asigna automáticamente el organizador (usuario autenticado)
-        antes de guardar el evento.
-        
-        
+    def perform_create(self, serializer):  
+        #Asigna automáticamente el organizador (usuario autenticado)
+        #antes de guardar el evento.
         serializer.save(organizador=self.request.user)
-    """
 
-    """
-    Cuando tengamos hecho la autenticacion, descomentar el metodo
+
     def create(self, request, *args, **kwargs):
         
-        Personaliza la respuesta tras crear un evento.
+       # Personaliza la respuesta tras crear un evento.
         
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -121,7 +115,7 @@ class EventoViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
             headers=headers
         )
-        """
+        
     
 class InscripcionViewSet(viewsets.ModelViewSet):
     """
@@ -130,7 +124,7 @@ class InscripcionViewSet(viewsets.ModelViewSet):
     - Se valida que no haya inscripciones duplicadas.
     """
     queryset = Inscripcion.objects.all()
-    #permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     # 🔍 Búsqueda y filtros
     search_fields = ['usuario__nombre', 'evento__titulo']

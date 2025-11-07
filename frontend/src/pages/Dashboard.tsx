@@ -5,10 +5,13 @@ import EventCard from "@/components/events/EventCard";
 import { mockEvents } from "@/data/mockEvents";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
+import { getUsersCountRequest } from '../api/users';
+import { useState } from "react";
 
 const Dashboard = () => {
   const upcomingEvents = mockEvents.slice(0, 4);
   const pastEvents = mockEvents.slice(4, 6);
+  const [usuariosActivos, setUsuariosActivos] = useState(0);
 
   return (
     <div className="flex min-h-screen w-full">

@@ -40,6 +40,7 @@ services:
     container_name: eventify-postgres
     restart: unless-stopped
     environment:
+      DATABASE_URL: ${DATABASE_URL}
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -47,6 +48,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./backend/init-db:/docker-entrypoint-init.d 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
