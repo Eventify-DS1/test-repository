@@ -89,7 +89,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
             'password2'
         ]
         extra_kwargs = {
-            'username': {'read_only': True},  # El username no se puede cambiar
+            'username': {'required': True},  # El username no se puede cambiar
             'first_name': {'required': False, 'allow_blank': True},
             'last_name': {'required': False, 'allow_blank': True},
             'carrera': {'required': False, 'allow_blank': True},
