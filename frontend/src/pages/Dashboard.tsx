@@ -134,7 +134,7 @@ const Dashboard = () => {
                 <Sparkles className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-3xl md:text-4xl font-extrabold bg-gradient-primary bg-clip-text text-transparent">
+                <h1 className="text-2xl md:text-3xl font-bold">
                   ¡Bienvenido de nuevo!
                 </h1>
                 <p className="text-muted-foreground font-medium">Aquí están tus próximos eventos</p>
