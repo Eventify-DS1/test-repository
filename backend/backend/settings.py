@@ -15,21 +15,25 @@ from pathlib import Path
 import environ
 from datetime import timedelta
 import dj_database_url  
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env()
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+PROJECT_ROOT= BASE_DIR.parent
+environ.Env.read_env(os.path.join(PROJECT_ROOT, '.env'))
 
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env.bool('DEBUG', default=False) #convierte la cadena "True" o "False" del .env en un valor booleano real.
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
+REDIS_URL = f"redis://:{env('REDIS_PASS')}@{env('REDIS_ENDPOINT')}"
 
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne', # Para soporte ASGI, debe ir primero
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,6 +44,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'channels',              
+    'django_celery_beat',
     # Apps locales
     'apps.usuarios',
     'apps.eventos',
@@ -75,7 +81,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'backend.wsgi.application'
-
+ASGI_APPLICATION = 'backend.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -181,3 +187,31 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # Importante añadir en el frontend credentials: 'include' para que funcione
 CORS_ALLOW_CREDENTIALS = True
+
+# --- CONFIGURACIÓN DE REAL-TIME & TAREAS ---
+
+# 1. Configuración de Celery
+CELERY_BROKER_URL = REDIS_URL # Lee la URL que pusimos en el .env
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'America/Bogota' # O tu zona horaria
+
+# 2. Configuración de Django Channels
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [REDIS_URL],
+        },
+    },
+}
+
+CELERY_BEAT_SCHEDULE = {
+    # Nombre único de la tarea
+    'chequear-eventos-cada-minuto': { 
+        # Ruta a la función que creamos arriba
+        'task': 'apps.eventos.tasks.verificar_eventos_15_minutos', 
+        # Frecuencia: Cada 1 minuto
+        'schedule': crontab(minute='*'), 
+    },
+}
