@@ -1,9 +1,17 @@
-import { Link, useLocation } from "react-router-dom";
-import { Calendar, MapPin, Users } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Calendar, MapPin, Users, CheckCircle2, Loader2 } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
 import eventPlaceholder from "@/assets/event-placeholder.jpg";
+import { 
+  checkInscriptionRequest, 
+  subscribeToEventRequest, 
+  unsubscribeFromEventRequest 
+} from "@/api/events";
+import { verifyTokenRequest } from "@/api/auth";
 
 interface EventCardProps {
   id: string;
@@ -29,6 +37,13 @@ const EventCard = ({
   image,
 }: EventCardProps) => {
   const location_hook = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   
   // Detectar si estamos en el dashboard o en la vista pública
   const isFromDashboard = location_hook.pathname.startsWith('/dashboard');
@@ -37,6 +52,107 @@ const EventCard = ({
   const detailRoute = isFromDashboard ? `/dashboard/event/${id}` : `/event/${id}`;
   
   const spotsLeft = capacity - registered;
+  
+  // Verificar autenticación y estado de inscripción
+  useEffect(() => {
+    const checkAuthAndSubscription = async () => {
+      try {
+        // Verificar si el usuario está autenticado
+        await verifyTokenRequest();
+        setIsAuthenticated(true);
+        
+        // Verificar si está inscrito
+        try {
+          const response = await checkInscriptionRequest(parseInt(id));
+          setIsSubscribed(response.data.esta_inscrito);
+        } catch (error) {
+          // Si falla, asumir que no está inscrito
+          setIsSubscribed(false);
+        }
+      } catch (error) {
+        // Usuario no autenticado
+        setIsAuthenticated(false);
+        setIsSubscribed(false);
+      } finally {
+        setIsChecking(false);
+      }
+    };
+    
+    checkAuthAndSubscription();
+  }, [id]);
+  
+  const handleSubscribe = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!isAuthenticated) {
+      toast({
+        title: "Debes iniciar sesión",
+        description: "Necesitas estar autenticado para inscribirte en eventos.",
+        variant: "default",
+      });
+      navigate('/login');
+      return;
+    }
+    
+    if (spotsLeft <= 0) {
+      toast({
+        title: "Evento lleno",
+        description: "No hay cupos disponibles para este evento.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      await subscribeToEventRequest(parseInt(id));
+      setIsSubscribed(true);
+      toast({
+        title: "¡Inscripción exitosa!",
+        description: `Te has inscrito en "${title}"`,
+        variant: "default",
+      });
+      // Recargar la página para actualizar el contador
+      window.location.reload();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Error al inscribirse en el evento';
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleUnsubscribe = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setIsLoading(true);
+    try {
+      await unsubscribeFromEventRequest(parseInt(id));
+      setIsSubscribed(false);
+      toast({
+        title: "Desinscripción exitosa",
+        description: `Te has desinscrito de "${title}"`,
+        variant: "default",
+      });
+      // Recargar la página para actualizar el contador
+      window.location.reload();
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Error al desinscribirse del evento';
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   const getCategoryColor = (cat: string) => {
     switch (cat.toLowerCase()) {
@@ -95,8 +211,36 @@ const EventCard = ({
         </div>
       </CardContent>
       
-      <CardFooter>
-        <Button asChild className="w-full gradient-primary text-white border-0">
+      <CardFooter className="flex flex-col gap-2">
+        {isAuthenticated && !isChecking && (
+          <Button
+            onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
+            disabled={isLoading || spotsLeft <= 0}
+            className={`w-full ${
+              isSubscribed
+                ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                : "gradient-primary text-white border-0"
+            }`}
+            variant={isSubscribed ? "secondary" : "default"}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {isSubscribed ? "Desinscribiendo..." : "Inscribiendo..."}
+              </>
+            ) : isSubscribed ? (
+              <>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Inscrito
+              </>
+            ) : spotsLeft <= 0 ? (
+              "Evento lleno"
+            ) : (
+              "Inscribirse"
+            )}
+          </Button>
+        )}
+        <Button asChild className="w-full" variant="outline">
           <Link to={detailRoute}>Ver detalles</Link>
         </Button>
       </CardFooter>

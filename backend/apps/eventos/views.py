@@ -2,10 +2,9 @@ from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework import serializers
 from .models import Evento, CategoriaEvento, Inscripcion
 from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer
-from rest_framework.decorators import action
-from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer
 
 
 class CategoriaEventoViewSet(viewsets.ModelViewSet):
@@ -115,6 +114,81 @@ class EventoViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
             headers=headers
         )
+    
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def esta_inscrito(self, request, pk=None):
+        """
+        Verifica si el usuario autenticado está inscrito en este evento.
+        """
+        evento = self.get_object()
+        esta_inscrito = Inscripcion.objects.filter(
+            usuario=request.user,
+            evento=evento
+        ).exists()
+        
+        return Response({
+            'esta_inscrito': esta_inscrito,
+            'evento_id': evento.id
+        })
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def inscribirse(self, request, pk=None):
+        """
+        Inscribe al usuario autenticado en este evento.
+        """
+        evento = self.get_object()
+        
+        # Verificar si ya está inscrito
+        if Inscripcion.objects.filter(usuario=request.user, evento=evento).exists():
+            return Response(
+                {'error': 'Ya estás inscrito en este evento.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar si hay cupos disponibles
+        if not evento.tiene_cupos_disponibles():
+            return Response(
+                {'error': 'No hay cupos disponibles para este evento.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Crear la inscripción
+        inscripcion = Inscripcion.objects.create(
+            usuario=request.user,
+            evento=evento
+        )
+        
+        serializer = InscripcionDetalleSerializer(inscripcion)
+        return Response(
+            {
+                'message': 'Te has inscrito exitosamente en el evento.',
+                'inscripcion': serializer.data
+            },
+            status=status.HTTP_201_CREATED
+        )
+    
+    @action(detail=True, methods=['delete'], permission_classes=[IsAuthenticated])
+    def desinscribirse(self, request, pk=None):
+        """
+        Desinscribe al usuario autenticado de este evento.
+        """
+        evento = self.get_object()
+        
+        try:
+            inscripcion = Inscripcion.objects.get(
+                usuario=request.user,
+                evento=evento
+            )
+            inscripcion.delete()
+            return Response(
+                {'message': 'Te has desinscrito del evento.'},
+                status=status.HTTP_200_OK
+            )
+        except Inscripcion.DoesNotExist:
+            return Response(
+                {'error': 'No estás inscrito en este evento.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
     
 class InscripcionViewSet(viewsets.ModelViewSet):
@@ -141,7 +215,13 @@ class InscripcionViewSet(viewsets.ModelViewSet):
         """
         Asigna automáticamente el usuario autenticado
         antes de guardar la inscripción.
+        Valida que haya cupos disponibles.
         """
+        evento = serializer.validated_data.get('evento')
+        if evento and not evento.tiene_cupos_disponibles():
+            raise serializers.ValidationError(
+                {'evento': 'No hay cupos disponibles para este evento.'}
+            )
         serializer.save(usuario=self.request.user)
 
 
