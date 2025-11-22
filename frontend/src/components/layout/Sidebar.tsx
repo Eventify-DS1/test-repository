@@ -43,7 +43,7 @@ const Sidebar = () => {
   };
 
   return (
-    <aside className="w-64 border-r bg-muted/30 min-h-screen flex flex-col">
+    <aside className="w-64 border-r bg-muted/30 h-screen sticky top-0 flex flex-col">
       <div className="p-6">
         <div className="flex items-center gap-2 mb-8">
           <img src="/branding/logo.png" alt="Eventify" className="h-10 w-auto" />

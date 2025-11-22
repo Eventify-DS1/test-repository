@@ -14,12 +14,13 @@ import os
 from pathlib import Path
 import environ
 from datetime import timedelta
-import dj_database_url  
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env()
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+PROJECT_ROOT = BASE_DIR.parent
+environ.Env.read_env(os.path.join(PROJECT_ROOT, '.env'))
 
 SECRET_KEY = os.environ.get('SECRET_KEY') or env('SECRET_KEY', default='django-insecure-temporary-key-change-in-production')
 DEBUG = env.bool('DEBUG', default=False) #convierte la cadena "True" o "False" del .env en un valor booleano real.
@@ -84,7 +85,7 @@ DATABASES = {
     'default': dj_database_url.config(
         default=env('DATABASE_URL'),
         conn_max_age=600,
-        conn_health_checks=True,
+        conn_health_checks=True,  
     )
 }
 
@@ -169,7 +170,7 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=20),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,

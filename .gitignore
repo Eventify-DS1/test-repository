@@ -12,7 +12,12 @@ lerna-debug.log*
 .env.local
 .env.production
 .venv
+venv
 env
+
+# Bytecode
+__pycache__/
+*.pyc
 
 node_modules
 dist
