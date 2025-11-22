@@ -15,6 +15,9 @@ import {
   unsubscribeFromEventRequest 
 } from "@/api/events";
 import { getImageUrl } from "@/utils/imageHelpers";
+import { getCurrentUserRequest } from "@/api/users";
+import { deleteEventRequest } from "@/api/events";
+
 
 // Interface para los datos del backend
 interface Organizador {
@@ -63,6 +66,7 @@ const EventDetail = () => {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(false);
   const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null); 
 
   // Detectar si viene del dashboard o es vista pública
   const isFromDashboard = location.pathname.startsWith('/dashboard');
@@ -116,6 +120,20 @@ const EventDetail = () => {
     fetchEvento();
   }, [id]);
 
+  useEffect(() =>{
+    const fetchUser = async () => {
+      try {
+        const res = await getCurrentUserRequest();
+        setCurrentUser(res.data);
+      } catch (e) {
+        console.log("No hay usuario autenticado");
+        setCurrentUser(null);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES', { 
@@ -242,6 +260,22 @@ const EventDetail = () => {
 
     const registered = evento.numero_inscritos || 0;
     const spotsLeft = evento.aforo - registered;
+
+    const isOwner = currentUser?.id === evento?.organizador?.id;
+
+    const handleDelete = async (id: number) => {
+      if (!confirm("¿Seguro que quieres eliminar este evento?")) return;
+      try {
+        await deleteEventRequest(id);
+        alert("Evento eliminado");
+        window.location.href = "/dashboard/search";
+      } catch (err) {
+        console.error(err);
+        alert("No se pudo eliminar el evento");
+      }
+    };
+
+
 
     return (
       <div className={isFromDashboard ? "p-8" : "container py-12"}>
@@ -387,6 +421,20 @@ const EventDetail = () => {
                   {evento.organizador?.nombre_completo || evento.organizador?.username || 'Desconocido'}
                 </p>
               </div>
+              {isOwner && (
+                <div className="space-y-3 mt-6">
+                  <Button className="w-full bg-blue-600 text-white" asChild>
+                    <Link to={`/dashboard/eventos/editar/${evento.id}`}>Editar evento</Link>
+                    </Button>
+                    <Button
+                    className="w-full bg-red-600 text-white"
+                    onClick={() => handleDelete(evento.id)}
+                    >
+                      Borrar evento
+                      </Button>
+                      </div>
+                    )}
+
 
               {evento.inscritos && evento.inscritos.length > 0 ? (
                 <div className="pt-4 border-t">
