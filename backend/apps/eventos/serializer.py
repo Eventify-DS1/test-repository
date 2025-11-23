@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from django.utils import timezone
-from .models import Evento, CategoriaEvento, Inscripcion
+from .models import Evento, CategoriaEvento, Inscripcion, Reseña
 from apps.usuarios.models import Usuario
 from apps.usuarios.serializer import UsuarioSerializer
 
@@ -114,7 +114,12 @@ class EventoSerializer(serializers.ModelSerializer):
         Valida que las fechas del evento sean lógicas:
         - fecha_fin debe ser posterior a fecha_inicio.
         - fecha_inicio no puede estar en el pasado.
+        NOTA: Esta validación solo se ejecuta al CREAR o ACTUALIZAR, no al leer.
         """
+        # Solo validar si hay datos nuevos (creación o actualización)
+        if not attrs:
+            return attrs
+            
         fecha_inicio = attrs.get('fecha_inicio')
         fecha_fin = attrs.get('fecha_fin')
 
@@ -123,7 +128,9 @@ class EventoSerializer(serializers.ModelSerializer):
                 {"fecha_fin": "La fecha de fin no puede ser anterior a la fecha de inicio."}
             )
 
-        if fecha_inicio and fecha_inicio < timezone.now():
+        # Solo validar fecha_inicio si se está creando un nuevo evento
+        # No validar si solo se está leyendo (serializando para respuesta)
+        if fecha_inicio and self.instance is None and fecha_inicio < timezone.now():
             raise serializers.ValidationError(
                 {"fecha_inicio": "No se pueden crear eventos en el pasado."}
             )
@@ -241,3 +248,82 @@ class EstadisticasCategoriasSerializer(serializers.ModelSerializer):
         """
         return CategoriaEvento.objects.count()
 
+
+
+class ReseñaSerializer(serializers.ModelSerializer):
+    """
+    Serializador para crear y listar reseñas.
+    """
+    usuario = UsuarioInscritoSerializer(read_only=True)
+    evento = EventoSerializer(read_only=True)
+    evento_id = serializers.PrimaryKeyRelatedField(
+        queryset=Evento.objects.all(),
+        source='evento',
+        write_only=True
+    )
+    
+    class Meta:
+        model = Reseña
+        fields = [
+            'id',
+            'evento',
+            'evento_id',
+            'usuario',
+            'comentario',
+            'puntuacion',
+            'fecha'
+        ]
+        read_only_fields = ['id', 'usuario', 'fecha']
+    
+    def validate(self, attrs):
+        """
+        Valida que:
+        1. El usuario esté inscrito en el evento
+        2. El evento haya finalizado
+        3. No exista ya una reseña del usuario para este evento
+        """
+        request = self.context.get('request')
+        evento = attrs.get('evento')
+        usuario = request.user if request and hasattr(request, 'user') else None
+        
+        if not usuario or not usuario.is_authenticated:
+            raise serializers.ValidationError("Debes estar autenticado para crear una reseña.")
+        
+        # Verificar que el evento haya finalizado
+        if evento.fecha_fin > timezone.now():
+            raise serializers.ValidationError(
+                {"evento": "Solo puedes calificar eventos que ya han finalizado."}
+            )
+        
+        # Verificar que el usuario esté inscrito
+        if not Inscripcion.objects.filter(usuario=usuario, evento=evento).exists():
+            raise serializers.ValidationError(
+                {"evento": "Solo puedes calificar eventos a los que asististe."}
+            )
+        
+        # Verificar que no exista ya una reseña
+        if Reseña.objects.filter(usuario=usuario, evento=evento).exists():
+            # Si es actualización, permitir
+            if self.instance:
+                return attrs
+            raise serializers.ValidationError(
+                {"evento": "Ya has calificado este evento."}
+            )
+        
+        # Validar que haya al menos puntuación o comentario
+        puntuacion = attrs.get('puntuacion')
+        comentario = attrs.get('comentario', '')
+        
+        if not puntuacion and not comentario:
+            raise serializers.ValidationError(
+                "Debes proporcionar al menos una puntuación o un comentario."
+            )
+        
+        return attrs
+    
+    def create(self, validated_data):
+        """Asigna automáticamente el usuario autenticado"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            validated_data['usuario'] = request.user
+        return Reseña.objects.create(**validated_data)

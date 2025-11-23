@@ -214,6 +214,9 @@ const EventDetail = () => {
   };
 
   const backRoute = isFromDashboard ? "/dashboard/search" : "/eventos";
+  const fromCalendar = location.state?.fromCalendar || false;
+  const backRouteWithCalendar = fromCalendar ? "/calendario" : backRoute;
+  const backText = fromCalendar ? "Volver a calendario" : (isFromDashboard ? "Volver a eventos" : "Volver a eventos");
 
   const EventContent = () => {
     if (loading) {
@@ -230,9 +233,9 @@ const EventDetail = () => {
           <div className="text-center">
             <p className="text-xl font-semibold mb-4">{error || "Evento no encontrado"}</p>
             <Button variant="outline" asChild>
-              <Link to={backRoute}>
+              <Link to={backRouteWithCalendar}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Volver a eventos
+                {backText}
               </Link>
             </Button>
           </div>
@@ -246,9 +249,9 @@ const EventDetail = () => {
     return (
       <div className={isFromDashboard ? "p-8" : "container py-12"}>
         <Button variant="ghost" asChild className="mb-6">
-          <Link to={backRoute}>
+          <Link to={backRouteWithCalendar}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Volver a eventos
+            {backText}
           </Link>
         </Button>
 

@@ -3,8 +3,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework import serializers
-from .models import Evento, CategoriaEvento, Inscripcion
-from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer
+from django.utils import timezone 
+from .models import Evento, CategoriaEvento, Inscripcion, Reseña
+from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer, ReseñaSerializer
 
 
 class CategoriaEventoViewSet(viewsets.ModelViewSet):
@@ -225,3 +226,116 @@ class InscripcionViewSet(viewsets.ModelViewSet):
         serializer.save(usuario=self.request.user)
 
 
+class ReseñaViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet para el modelo Reseña.
+    - Los usuarios pueden crear reseñas para eventos finalizados donde asistieron
+    - Cualquiera puede ver las reseñas (list, retrieve)
+    - Solo el autor puede editar/eliminar su reseña
+    """
+    serializer_class = ReseñaSerializer
+    permission_classes = [IsAuthenticated]
+    
+    # Filtros
+    filterset_fields = ['evento', 'usuario', 'puntuacion']
+    ordering_fields = ['fecha', 'puntuacion']
+    ordering = ['-fecha']  # Más recientes primero
+    
+    def get_queryset(self):
+        """
+        Filtra las reseñas según el contexto:
+        - Si se pasa ?evento=id, muestra solo reseñas de ese evento
+        - Si se pasa ?mis_reseñas=true, muestra solo las del usuario autenticado
+        """
+        queryset = Reseña.objects.select_related('evento', 'usuario').all()
+        
+        evento_id = self.request.query_params.get('evento', None)
+        if evento_id:
+            queryset = queryset.filter(evento_id=evento_id)
+        
+        mis_reseñas = self.request.query_params.get('mis_reseñas', None)
+        if mis_reseñas == 'true':
+            queryset = queryset.filter(usuario=self.request.user)
+        
+        return queryset
+    
+    def get_permissions(self):
+        """
+        Permisos:
+        - list, retrieve: Cualquiera puede ver (AllowAny)
+        - create, update, destroy: Requiere autenticación
+        """
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated()]
+    
+    def perform_create(self, serializer):
+        """Asigna automáticamente el usuario autenticado"""
+        serializer.save(usuario=self.request.user)
+    
+    def perform_update(self, serializer):
+        """Solo permite actualizar si es el autor"""
+        if serializer.instance.usuario != self.request.user:
+            raise serializers.ValidationError(
+                "No tienes permiso para editar esta reseña."
+            )
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        """Solo permite eliminar si es el autor"""
+        if instance.usuario != self.request.user:
+            raise serializers.ValidationError(
+                "No tienes permiso para eliminar esta reseña."
+            )
+        instance.delete()
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eventos_calificables(self, request):
+        """
+        Retorna los eventos finalizados donde el usuario asistió
+        y aún no ha calificado.
+        """
+        # Eventos donde el usuario está inscrito
+        inscripciones = Inscripcion.objects.filter(usuario=request.user)
+        eventos_inscritos = [insc.evento for insc in inscripciones]
+        
+        # Filtrar eventos finalizados
+        eventos_finalizados = [
+            evento for evento in eventos_inscritos 
+            if evento.fecha_fin < timezone.now()
+        ]
+        
+        # Filtrar eventos que ya tienen reseña del usuario
+        reseñas_existentes = Reseña.objects.filter(
+            usuario=request.user
+        ).values_list('evento_id', flat=True)
+        
+        eventos_calificables = [
+            evento for evento in eventos_finalizados
+            if evento.id not in reseñas_existentes
+        ]
+        
+        # Serializar los eventos
+        serializer = EventoSerializer(eventos_calificables, many=True, context={'request': request})
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny])
+    def promedio_calificacion(self, request, pk=None):
+        """
+        Retorna el promedio de calificaciones de un evento.
+        pk es el ID del evento, no de la reseña.
+        """
+        from django.db.models import Avg
+        
+        evento_id = pk
+        promedio = Reseña.objects.filter(
+            evento_id=evento_id
+        ).aggregate(promedio=Avg('puntuacion'))['promedio']
+        
+        total_reseñas = Reseña.objects.filter(evento_id=evento_id).count()
+        
+        return Response({
+            'evento_id': evento_id,
+            'promedio': round(promedio, 2) if promedio else 0,
+            'total_reseñas': total_reseñas
+        })

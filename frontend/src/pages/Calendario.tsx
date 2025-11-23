@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -396,6 +397,21 @@ const Calendario = () => {
               <p className="text-base">
                 {selectedEvent?.organizador?.nombre_completo || selectedEvent?.organizador?.username || 'Desconocido'}
               </p>
+            </div>
+            {/* Agregar botón "Ver detalles" aquí */}
+            <div className="pt-4 border-t">
+              <Button 
+                asChild 
+                className="w-full gradient-primary text-white border-0"
+              >
+                <Link 
+                  to={`/event/${selectedEvent?.id}`} 
+                  state={{ fromCalendar: true }}
+                  onClick={() => setSelectedEvent(null)}
+                >
+                  Ver detalles
+                </Link>
+              </Button>
             </div>
           </div>
         </DialogContent>

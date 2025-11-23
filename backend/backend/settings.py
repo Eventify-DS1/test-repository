@@ -111,9 +111,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-co'  # Cambiar a español de Colombia
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Bogota'  # Cambiar de 'UTC' a 'America/Bogota'
 
 USE_I18N = True
 
