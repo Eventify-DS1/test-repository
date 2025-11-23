@@ -3,6 +3,8 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
+import secrets
+import string
 
 Usuario = settings.AUTH_USER_MODEL
 
@@ -26,6 +28,7 @@ class Evento(models.Model):
     ubicacion = models.CharField(max_length=200)
     foto = models.ImageField(upload_to='eventos/', null=True, blank=True)
     asistentes = models.ManyToManyField(Usuario, through='Inscripcion', related_name='eventos_asistidos')
+    codigo_confirmacion = models.CharField(max_length=10, unique=True, editable=False)
 
     # Relaciones
     organizador = models.ForeignKey(
@@ -39,6 +42,21 @@ class Evento(models.Model):
         null=True,
         related_name='eventos'
     )
+    
+    def generar_codigo_confirmacion(self):
+        """Genera un código aleatorio de 6 caracteres alfanuméricos"""
+        caracteres = string.ascii_uppercase + string.digits
+        codigo = ''.join(secrets.choice(caracteres) for _ in range(6))
+        # Asegurar que el código sea único
+        while Evento.objects.filter(codigo_confirmacion=codigo).exists():
+            codigo = ''.join(secrets.choice(caracteres) for _ in range(6))
+        return codigo
+    
+    def save(self, *args, **kwargs):
+        # Generar código de confirmación solo si es un nuevo evento
+        if not self.pk and not self.codigo_confirmacion:
+            self.codigo_confirmacion = self.generar_codigo_confirmacion()
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "Evento"
@@ -75,6 +93,8 @@ class Inscripcion(models.Model):
         related_name='inscripciones'
     )
     fecha_inscripcion = models.DateTimeField(auto_now_add=True)
+    asistencia_confirmada = models.BooleanField(default=False)
+    fecha_confirmacion = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         constraints = [

@@ -80,6 +80,9 @@ class EventoSerializer(serializers.ModelSerializer):
     
     # Lista de usuarios inscritos (solo nombres)
     inscritos = serializers.SerializerMethodField()
+    
+    # Código de confirmación (solo visible para el organizador)
+    codigo_confirmacion = serializers.SerializerMethodField()
 
     class Meta:
         model = Evento
@@ -97,6 +100,7 @@ class EventoSerializer(serializers.ModelSerializer):
             'categoria_id',
             'numero_inscritos',  # Número total de inscritos
             'inscritos',  # Lista de usuarios inscritos con nombres
+            'codigo_confirmacion',  # Código de confirmación (solo para organizador)
         ]
     
     def get_numero_inscritos(self, obj):
@@ -107,6 +111,14 @@ class EventoSerializer(serializers.ModelSerializer):
         """Retorna la lista de usuarios inscritos con sus nombres"""
         inscripciones = obj.inscripciones.select_related('usuario').all()
         return UsuarioInscritoSerializer([inscripcion.usuario for inscripcion in inscripciones], many=True).data
+    
+    def get_codigo_confirmacion(self, obj):
+        """Retorna el código de confirmación solo si el usuario es el organizador"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            if obj.organizador == request.user:
+                return obj.codigo_confirmacion
+        return None
 
     # === Validaciones personalizadas ===
     def validate(self, attrs):
@@ -173,8 +185,8 @@ class EventoSerializer(serializers.ModelSerializer):
 class InscripcionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Inscripcion
-        fields = ['id', 'usuario', 'evento', 'fecha_inscripcion']
-        read_only_fields = ['fecha_inscripcion']
+        fields = ['id', 'usuario', 'evento', 'fecha_inscripcion', 'asistencia_confirmada', 'fecha_confirmacion']
+        read_only_fields = ['fecha_inscripcion', 'asistencia_confirmada', 'fecha_confirmacion']
 
     def create(self,validated_data):
         request = self.context.get('request')
@@ -198,7 +210,7 @@ class InscripcionDetalleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Inscripcion
-        fields = ['id', 'usuario', 'evento', 'fecha_inscripcion']
+        fields = ['id', 'usuario', 'evento', 'fecha_inscripcion', 'asistencia_confirmada', 'fecha_confirmacion']
 
 class EstadisticasEventosSerializer(serializers.ModelSerializer):
     """

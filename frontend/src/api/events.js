@@ -62,3 +62,10 @@ export const getUserInscriptionsRequest = () => {
         },
     });
 };
+
+// Confirmar asistencia con código
+export const confirmAttendanceRequest = (eventId, codigo) => {
+    return apiClient.post(`/events-utils/eventos/${eventId}/confirmar_asistencia/`, {
+        codigo: codigo
+    });
+};
