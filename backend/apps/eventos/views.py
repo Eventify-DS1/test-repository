@@ -120,17 +120,25 @@ class EventoViewSet(viewsets.ModelViewSet):
     def esta_inscrito(self, request, pk=None):
         """
         Verifica si el usuario autenticado está inscrito en este evento.
+        También retorna si la asistencia está confirmada.
         """
         evento = self.get_object()
-        esta_inscrito = Inscripcion.objects.filter(
-            usuario=request.user,
-            evento=evento
-        ).exists()
-        
-        return Response({
-            'esta_inscrito': esta_inscrito,
-            'evento_id': evento.id
-        })
+        try:
+            inscripcion = Inscripcion.objects.get(
+                usuario=request.user,
+                evento=evento
+            )
+            return Response({
+                'esta_inscrito': True,
+                'asistencia_confirmada': inscripcion.asistencia_confirmada,
+                'evento_id': evento.id
+            })
+        except Inscripcion.DoesNotExist:
+            return Response({
+                'esta_inscrito': False,
+                'asistencia_confirmada': False,
+                'evento_id': evento.id
+            })
     
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def inscribirse(self, request, pk=None):
@@ -172,6 +180,7 @@ class EventoViewSet(viewsets.ModelViewSet):
     def desinscribirse(self, request, pk=None):
         """
         Desinscribe al usuario autenticado de este evento.
+        No permite desinscribirse si la asistencia ya está confirmada.
         """
         evento = self.get_object()
         
@@ -180,6 +189,14 @@ class EventoViewSet(viewsets.ModelViewSet):
                 usuario=request.user,
                 evento=evento
             )
+            
+            # Verificar si la asistencia ya está confirmada
+            if inscripcion.asistencia_confirmada:
+                return Response(
+                    {'error': 'No puedes desinscribirte porque tu asistencia ya está confirmada.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
             inscripcion.delete()
             return Response(
                 {'message': 'Te has desinscrito del evento.'},
@@ -190,6 +207,61 @@ class EventoViewSet(viewsets.ModelViewSet):
                 {'error': 'No estás inscrito en este evento.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def confirmar_asistencia(self, request, pk=None):
+        """
+        Confirma la asistencia del usuario autenticado ingresando el código de confirmación.
+        """
+        evento = self.get_object()
+        codigo = request.data.get('codigo', '').strip().upper()
+        
+        if not codigo:
+            return Response(
+                {'error': 'Debes proporcionar un código de confirmación.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar si el usuario está inscrito
+        try:
+            inscripcion = Inscripcion.objects.get(
+                usuario=request.user,
+                evento=evento
+            )
+        except Inscripcion.DoesNotExist:
+            return Response(
+                {'error': 'No estás inscrito en este evento.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar si ya está confirmado
+        if inscripcion.asistencia_confirmada:
+            return Response(
+                {'error': 'Tu asistencia ya está confirmada.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar el código
+        if evento.codigo_confirmacion.upper() != codigo:
+            return Response(
+                {'error': 'Código de confirmación incorrecto.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Confirmar asistencia
+        from django.utils import timezone
+        inscripcion.asistencia_confirmada = True
+        inscripcion.fecha_confirmacion = timezone.now()
+        inscripcion.save()
+        
+        serializer = InscripcionDetalleSerializer(inscripcion)
+        return Response(
+            {
+                'message': '¡Asistencia confirmada exitosamente!',
+                'inscripcion': serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
         
     
 class InscripcionViewSet(viewsets.ModelViewSet):

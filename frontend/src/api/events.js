@@ -15,6 +15,20 @@ export const createEventRequest = (eventData) => {
     return apiClient.post('/events-utils/eventos/', eventData);
 };
 
+// Eliminar evento por ID
+export const deleteEventRequest = (id) => {
+  return apiClient.delete(`/events-utils/eventos/${id}/`);
+};
+
+
+//Actualizar informacion para editar evento
+export const updateEventRequest = (id, data) => {
+  return apiClient.put(`/events-utils/eventos/${id}/`, data, {
+    headers: { "Content-Type": "multipart/form-data" }
+  });
+};
+
+
 // Obtener eventos destacados (3 más recientes)
 export const getFeaturedEventsRequest = (limit = 3) => {
     return apiClient.get('/events-utils/eventos/', {
@@ -46,5 +60,12 @@ export const getUserInscriptionsRequest = () => {
         params: {
             // El backend filtra automáticamente por usuario autenticado
         },
+    });
+};
+
+// Confirmar asistencia con código
+export const confirmAttendanceRequest = (eventId, codigo) => {
+    return apiClient.post(`/events-utils/eventos/${eventId}/confirmar_asistencia/`, {
+        codigo: codigo
     });
 };

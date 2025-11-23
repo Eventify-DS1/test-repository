@@ -2,7 +2,8 @@ import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -12,9 +13,13 @@ import { getEventoByIdRequest, verifyTokenRequest } from "@/api/auth";
 import { 
   checkInscriptionRequest, 
   subscribeToEventRequest, 
-  unsubscribeFromEventRequest 
+  unsubscribeFromEventRequest,
+  confirmAttendanceRequest
 } from "@/api/events";
 import { getImageUrl } from "@/utils/imageHelpers";
+import { getCurrentUserRequest } from "@/api/users";
+import { deleteEventRequest } from "@/api/events";
+
 
 // Interface para los datos del backend
 interface Organizador {
@@ -49,6 +54,7 @@ interface Evento {
   organizador: Organizador;
   numero_inscritos: number;
   inscritos: UsuarioInscrito[];
+  codigo_confirmacion?: string | null;
 }
 
 const EventDetail = () => {
@@ -61,8 +67,12 @@ const EventDetail = () => {
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
+  const [asistenciaConfirmada, setAsistenciaConfirmada] = useState(false);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(false);
   const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [codigoConfirmacion, setCodigoConfirmacion] = useState("");
+  const [isConfirming, setIsConfirming] = useState(false); 
 
   // Detectar si viene del dashboard o es vista pública
   const isFromDashboard = location.pathname.startsWith('/dashboard');
@@ -73,13 +83,15 @@ const EventDetail = () => {
         await verifyTokenRequest();
         setIsAuthenticated(true);
         
-        // Verificar si está inscrito
+        // Verificar si está inscrito y si asistencia está confirmada
         if (id) {
           try {
             const response = await checkInscriptionRequest(parseInt(id));
             setIsSubscribed(response.data.esta_inscrito);
+            setAsistenciaConfirmada(response.data.asistencia_confirmada || false);
           } catch (error) {
             setIsSubscribed(false);
+            setAsistenciaConfirmada(false);
           }
         }
       } catch {
@@ -116,6 +128,20 @@ const EventDetail = () => {
     fetchEvento();
   }, [id]);
 
+  useEffect(() =>{
+    const fetchUser = async () => {
+      try {
+        const res = await getCurrentUserRequest();
+        setCurrentUser(res.data);
+      } catch (e) {
+        console.log("No hay usuario autenticado");
+        setCurrentUser(null);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES', { 
@@ -162,15 +188,20 @@ const EventDetail = () => {
     try {
       await subscribeToEventRequest(parseInt(id));
       setIsSubscribed(true);
+      setAsistenciaConfirmada(false);
       toast({
         title: "¡Inscripción exitosa!",
-        description: `Te has inscrito en "${evento?.titulo}"`,
+        description: `Te has inscrito en "${evento?.titulo}". Ahora ingresa el código de confirmación.`,
         variant: "default",
       });
       // Recargar el evento para actualizar el contador
       if (id) {
         const response = await getEventoByIdRequest(id);
         setEvento(response.data);
+        // Recargar estado de inscripción
+        const checkResponse = await checkInscriptionRequest(parseInt(id));
+        setIsSubscribed(checkResponse.data.esta_inscrito);
+        setAsistenciaConfirmada(checkResponse.data.asistencia_confirmada || false);
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 'Error al inscribirse en el evento';
@@ -187,10 +218,20 @@ const EventDetail = () => {
   const handleUnsubscribe = async () => {
     if (!id) return;
     
+    if (asistenciaConfirmada) {
+      toast({
+        title: "No puedes desinscribirte",
+        description: "No puedes desinscribirte porque tu asistencia ya está confirmada.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setIsLoadingSubscription(true);
     try {
       await unsubscribeFromEventRequest(parseInt(id));
       setIsSubscribed(false);
+      setAsistenciaConfirmada(false);
       toast({
         title: "Desinscripción exitosa",
         description: `Te has desinscrito de "${evento?.titulo}"`,
@@ -210,6 +251,45 @@ const EventDetail = () => {
       });
     } finally {
       setIsLoadingSubscription(false);
+    }
+  };
+  
+  const handleConfirmAttendance = async () => {
+    if (!id || !codigoConfirmacion.trim()) {
+      toast({
+        title: "Código requerido",
+        description: "Por favor ingresa el código de confirmación.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsConfirming(true);
+    try {
+      await confirmAttendanceRequest(parseInt(id), codigoConfirmacion.trim().toUpperCase());
+      setAsistenciaConfirmada(true);
+      setCodigoConfirmacion("");
+      toast({
+        title: "¡Asistencia confirmada!",
+        description: "Tu asistencia ha sido confirmada exitosamente.",
+        variant: "default",
+      });
+      // Recargar el evento
+      if (id) {
+        const response = await getEventoByIdRequest(id);
+        setEvento(response.data);
+        const checkResponse = await checkInscriptionRequest(parseInt(id));
+        setAsistenciaConfirmada(checkResponse.data.asistencia_confirmada || false);
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Error al confirmar asistencia';
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsConfirming(false);
     }
   };
 
@@ -245,6 +325,22 @@ const EventDetail = () => {
 
     const registered = evento.numero_inscritos || 0;
     const spotsLeft = evento.aforo - registered;
+
+    const isOwner = currentUser?.id === evento?.organizador?.id;
+
+    const handleDelete = async (id: number) => {
+      if (!confirm("¿Seguro que quieres eliminar este evento?")) return;
+      try {
+        await deleteEventRequest(id);
+        alert("Evento eliminado");
+        window.location.href = "/dashboard/search";
+      } catch (err) {
+        console.error(err);
+        alert("No se pudo eliminar el evento");
+      }
+    };
+
+
 
     return (
       <div className={isFromDashboard ? "p-8" : "container py-12"}>
@@ -335,32 +431,42 @@ const EventDetail = () => {
                 </div>
 
                 {isAuthenticated && !isCheckingSubscription ? (
-                  <Button
-                    onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
-                    disabled={isLoadingSubscription || (spotsLeft <= 0 && !isSubscribed)}
-                    className={`w-full ${
-                      isSubscribed
-                        ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground"
-                        : "gradient-primary text-white border-0"
-                    }`}
-                    variant={isSubscribed ? "secondary" : "default"}
-                  >
-                    {isLoadingSubscription ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        {isSubscribed ? "Desinscribiendo..." : "Inscribiendo..."}
-                      </>
-                    ) : isSubscribed ? (
-                      <>
+                  <>
+                    {!isSubscribed ? (
+                      <Button
+                        onClick={handleSubscribe}
+                        disabled={isLoadingSubscription || spotsLeft <= 0}
+                        className="w-full gradient-primary text-white border-0"
+                      >
+                        {isLoadingSubscription ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Inscribiendo...
+                          </>
+                        ) : spotsLeft <= 0 ? (
+                          "Evento lleno"
+                        ) : (
+                          "Inscribirse al evento"
+                        )}
+                      </Button>
+                    ) : asistenciaConfirmada ? (
+                      <Button
+                        disabled
+                        className="w-full bg-green-600 text-white"
+                      >
                         <CheckCircle2 className="mr-2 h-4 w-4" />
-                        Inscrito - Desinscribirse
-                      </>
-                    ) : spotsLeft <= 0 ? (
-                      "Evento lleno"
+                        Asistencia Confirmada
+                      </Button>
                     ) : (
-                      "Inscribirse al evento"
+                      <Button
+                        disabled
+                        className="w-full bg-secondary text-secondary-foreground"
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Inscrito
+                      </Button>
                     )}
-                  </Button>
+                  </>
                 ) : isAuthenticated ? (
                   <Button
                     disabled
@@ -382,6 +488,69 @@ const EventDetail = () => {
                     </p>
                   </>
                 )}
+                
+                {/* Campo de código de confirmación - solo si está inscrito y no confirmado */}
+                {isAuthenticated && isSubscribed && !asistenciaConfirmada && (
+                  <div className="mt-4 space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      Código de confirmación
+                    </label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Ingresa el código"
+                        value={codigoConfirmacion}
+                        onChange={(e) => setCodigoConfirmacion(e.target.value.toUpperCase())}
+                        maxLength={10}
+                        className="flex-1 uppercase"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            handleConfirmAttendance();
+                          }
+                        }}
+                      />
+                      <Button
+                        onClick={handleConfirmAttendance}
+                        disabled={isConfirming || !codigoConfirmacion.trim()}
+                        className="gradient-primary text-white border-0"
+                      >
+                        {isConfirming ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Key className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Solicita el código al organizador del evento para confirmar tu asistencia.
+                    </p>
+                  </div>
+                )}
+                
+                {/* Mostrar si asistencia está confirmada */}
+                {isAuthenticated && isSubscribed && asistenciaConfirmada && (
+                  <div className="mt-4 p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle2 className="h-5 w-5" />
+                      <p className="text-sm font-medium">Asistencia confirmada</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Ya no puedes desinscribirte de este evento.
+                    </p>
+                  </div>
+                )}
+                
+                {/* Botón de desinscripción - solo si está inscrito y NO confirmado */}
+                {isAuthenticated && isSubscribed && !asistenciaConfirmada && (
+                  <Button
+                    onClick={handleUnsubscribe}
+                    disabled={isLoadingSubscription}
+                    variant="outline"
+                    className="w-full mt-2"
+                  >
+                    Desinscribirse
+                  </Button>
+                )}
               </div>
 
               <div className="pt-4 border-t">
@@ -390,6 +559,38 @@ const EventDetail = () => {
                   {evento.organizador?.nombre_completo || evento.organizador?.username || 'Desconocido'}
                 </p>
               </div>
+              
+              {/* Mostrar código de confirmación al organizador */}
+              {isOwner && evento.codigo_confirmacion && (
+                <div className="pt-4 border-t">
+                  <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Key className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-semibold text-primary">Código de Confirmación</p>
+                    </div>
+                    <p className="text-2xl font-bold text-center tracking-widest mb-2">
+                      {evento.codigo_confirmacion}
+                    </p>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Comparte este código con los asistentes para que confirmen su asistencia
+                    </p>
+                  </div>
+                </div>
+              )}
+              {isOwner && (
+                <div className="space-y-3 mt-6">
+                  <Button className="w-full bg-blue-600 text-white" asChild>
+                    <Link to={`/dashboard/eventos/editar/${evento.id}`}>Editar evento</Link>
+                    </Button>
+                    <Button
+                    className="w-full bg-red-600 text-white"
+                    onClick={() => handleDelete(evento.id)}
+                    >
+                      Borrar evento
+                      </Button>
+                      </div>
+                    )}
+
 
               {evento.inscritos && evento.inscritos.length > 0 ? (
                 <div className="pt-4 border-t">
