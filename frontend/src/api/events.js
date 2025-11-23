@@ -24,3 +24,27 @@ export const getFeaturedEventsRequest = (limit = 3) => {
         },
     });
 };
+
+// Verificar si el usuario está inscrito en un evento
+export const checkInscriptionRequest = (eventId) => {
+    return apiClient.get(`/events-utils/eventos/${eventId}/esta_inscrito/`);
+};
+
+// Inscribirse en un evento
+export const subscribeToEventRequest = (eventId) => {
+    return apiClient.post(`/events-utils/eventos/${eventId}/inscribirse/`);
+};
+
+// Desinscribirse de un evento
+export const unsubscribeFromEventRequest = (eventId) => {
+    return apiClient.delete(`/events-utils/eventos/${eventId}/desinscribirse/`);
+};
+
+// Obtener inscripciones del usuario actual
+export const getUserInscriptionsRequest = () => {
+    return apiClient.get('/events-utils/inscripciones/', {
+        params: {
+            // El backend filtra automáticamente por usuario autenticado
+        },
+    });
+};

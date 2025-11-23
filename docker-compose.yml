@@ -20,11 +20,12 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
+      - DATABASE_URL=${DATABASE_URL}
+      - POSTGRES_DB=${POSTGRES_DB:-}
+      - POSTGRES_USER=${POSTGRES_USER:-}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=${DEBUG}
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
@@ -32,29 +33,31 @@ services:
     entrypoint: ["/app/entrypoint.sh"]
     ports:
       - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # Descomentar para base de datos local:
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
 
   postgres:
     image: postgres:15-alpine
     container_name: eventify-postgres
     restart: unless-stopped
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/init-db:/docker-entrypoint-init.d 
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    profiles:
+      - local-db
 
   pgadmin:
     image: dpage/pgadmin4:latest
@@ -70,6 +73,8 @@ services:
       - pgadmin_data:/var/lib/pgadmin
     depends_on:
       - postgres
+    profiles:
+      - local-db
 
 volumes:
   postgres_data:

@@ -22,7 +22,7 @@ env = environ.Env()
 PROJECT_ROOT = BASE_DIR.parent
 environ.Env.read_env(os.path.join(PROJECT_ROOT, '.env'))
 
-SECRET_KEY = env('SECRET_KEY')
+SECRET_KEY = os.environ.get('SECRET_KEY') or env('SECRET_KEY', default='django-insecure-temporary-key-change-in-production')
 DEBUG = env.bool('DEBUG', default=False) #convierte la cadena "True" o "False" del .env en un valor booleano real.
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
@@ -137,9 +137,12 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'apps.usuarios.auth.CookieJWTAuthentication',
     ],
+    # DEFAULT_PERMISSION_CLASSES: Permiso por defecto para todos los viewsets
+    # Si un viewset no define permission_classes, usará este.
+    # AllowAny permite acceso sin autenticación por defecto.
+    # Cada viewset puede sobrescribir esto con su propio get_permissions() o permission_classes
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.AllowAny',
-        'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',

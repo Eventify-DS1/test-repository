@@ -1,13 +1,19 @@
-import { useParams, Link, useLocation } from "react-router-dom";
+import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, ArrowLeft } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import Sidebar from "@/components/layout/Sidebar";
 import eventPlaceholder from "@/assets/event-placeholder.jpg";
 import { getEventoByIdRequest, verifyTokenRequest } from "@/api/auth";
+import { 
+  checkInscriptionRequest, 
+  subscribeToEventRequest, 
+  unsubscribeFromEventRequest 
+} from "@/api/events";
 import { getImageUrl } from "@/utils/imageHelpers";
 
 // Interface para los datos del backend
@@ -48,26 +54,44 @@ interface Evento {
 const EventDetail = () => {
   const { id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [evento, setEvento] = useState<Evento | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [isLoadingSubscription, setIsLoadingSubscription] = useState(false);
+  const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
 
   // Detectar si viene del dashboard o es vista pública
   const isFromDashboard = location.pathname.startsWith('/dashboard');
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuthAndSubscription = async () => {
       try {
         await verifyTokenRequest();
         setIsAuthenticated(true);
+        
+        // Verificar si está inscrito
+        if (id) {
+          try {
+            const response = await checkInscriptionRequest(parseInt(id));
+            setIsSubscribed(response.data.esta_inscrito);
+          } catch (error) {
+            setIsSubscribed(false);
+          }
+        }
       } catch {
         setIsAuthenticated(false);
+        setIsSubscribed(false);
+      } finally {
+        setIsCheckingSubscription(false);
       }
     };
     
-    checkAuth();
-  }, []);
+    checkAuthAndSubscription();
+  }, [id]);
 
   useEffect(() => {
     const fetchEvento = async () => {
@@ -87,7 +111,7 @@ const EventDetail = () => {
       } finally {
         setLoading(false);
       }
-    };
+    };  
 
     fetchEvento();
   }, [id]);
@@ -107,6 +131,86 @@ const EventDetail = () => {
       hour: '2-digit', 
       minute: '2-digit' 
     });
+  };
+
+  const handleSubscribe = async () => {
+    if (!id || !evento) return;
+    
+    if (!isAuthenticated) {
+      toast({
+        title: "Debes iniciar sesión",
+        description: "Necesitas estar autenticado para inscribirte en eventos.",
+        variant: "default",
+      });
+      navigate('/login');
+      return;
+    }
+    
+    const registered = evento.numero_inscritos || 0;
+    const spotsLeft = evento.aforo - registered;
+    
+    if (spotsLeft <= 0) {
+      toast({
+        title: "Evento lleno",
+        description: "No hay cupos disponibles para este evento.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsLoadingSubscription(true);
+    try {
+      await subscribeToEventRequest(parseInt(id));
+      setIsSubscribed(true);
+      toast({
+        title: "¡Inscripción exitosa!",
+        description: `Te has inscrito en "${evento?.titulo}"`,
+        variant: "default",
+      });
+      // Recargar el evento para actualizar el contador
+      if (id) {
+        const response = await getEventoByIdRequest(id);
+        setEvento(response.data);
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Error al inscribirse en el evento';
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingSubscription(false);
+    }
+  };
+  
+  const handleUnsubscribe = async () => {
+    if (!id) return;
+    
+    setIsLoadingSubscription(true);
+    try {
+      await unsubscribeFromEventRequest(parseInt(id));
+      setIsSubscribed(false);
+      toast({
+        title: "Desinscripción exitosa",
+        description: `Te has desinscrito de "${evento?.titulo}"`,
+        variant: "default",
+      });
+      // Recargar el evento para actualizar el contador
+      if (id) {
+        const response = await getEventoByIdRequest(id);
+        setEvento(response.data);
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error || 'Error al desinscribirse del evento';
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingSubscription(false);
+    }
   };
 
   const backRoute = isFromDashboard ? "/dashboard/search" : "/eventos";
@@ -227,12 +331,40 @@ const EventDetail = () => {
                   )}
                 </div>
 
-                {isAuthenticated ? (
+                {isAuthenticated && !isCheckingSubscription ? (
                   <Button
-                    disabled={spotsLeft <= 0}
+                    onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
+                    disabled={isLoadingSubscription || (spotsLeft <= 0 && !isSubscribed)}
+                    className={`w-full ${
+                      isSubscribed
+                        ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                        : "gradient-primary text-white border-0"
+                    }`}
+                    variant={isSubscribed ? "secondary" : "default"}
+                  >
+                    {isLoadingSubscription ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {isSubscribed ? "Desinscribiendo..." : "Inscribiendo..."}
+                      </>
+                    ) : isSubscribed ? (
+                      <>
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Inscrito - Desinscribirse
+                      </>
+                    ) : spotsLeft <= 0 ? (
+                      "Evento lleno"
+                    ) : (
+                      "Inscribirse al evento"
+                    )}
+                  </Button>
+                ) : isAuthenticated ? (
+                  <Button
+                    disabled
                     className="w-full gradient-primary text-white border-0"
                   >
-                    {spotsLeft > 0 ? "Inscribirse al evento" : "Evento lleno"}
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Verificando...
                   </Button>
                 ) : (
                   <>
