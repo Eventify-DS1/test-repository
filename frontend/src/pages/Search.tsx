@@ -105,10 +105,26 @@ const Search = () => {
                              (response.data.results || []);
         
         // Crear un Set con los IDs de eventos en los que está inscrito
-        const eventIds = new Set<number>(
-          inscripciones.map((inscripcion: any) => inscripcion.evento?.id || inscripcion.evento)
-            .filter((id: any) => id !== undefined)
-        );
+        const eventIds = new Set<number>();
+        
+        inscripciones.forEach((inscripcion: any) => {
+          // El evento puede venir como objeto completo o como ID
+          let eventoId: number | undefined;
+          
+          if (inscripcion.evento) {
+            if (typeof inscripcion.evento === 'object' && inscripcion.evento.id) {
+              // Es un objeto con id
+              eventoId = inscripcion.evento.id;
+            } else if (typeof inscripcion.evento === 'number') {
+              // Es directamente el ID
+              eventoId = inscripcion.evento;
+            }
+          }
+          
+          if (eventoId !== undefined && !isNaN(eventoId)) {
+            eventIds.add(Number(eventoId));
+          }
+        });
         
         setSubscribedEventIds(eventIds);
       } catch (error) {
@@ -181,19 +197,27 @@ const Search = () => {
       }
     }
 
-    // Filtro por inscripción
-    if (subscriptionFilter === "subscribed") {
-      // Solo eventos donde el usuario está inscrito
-      if (!subscribedEventIds.has(evento.id)) {
-        return false;
-      }
-    } else if (subscriptionFilter === "not_subscribed") {
-      // Solo eventos donde el usuario NO está inscrito
-      if (subscribedEventIds.has(evento.id)) {
-        return false;
+    // Filtro por inscripción (solo aplicar si las inscripciones ya se cargaron)
+    if (!loadingSubscriptions) {
+      // Asegurar que el ID del evento sea un número para la comparación
+      const eventoId = Number(evento.id);
+      
+      if (subscriptionFilter === "subscribed") {
+        // Solo eventos donde el usuario está inscrito
+        // Verificar que el ID del evento esté en el Set de eventos inscritos
+        if (!subscribedEventIds.has(eventoId)) {
+          return false;
+        }
+      } else if (subscriptionFilter === "not_subscribed") {
+        // Solo eventos donde el usuario NO está inscrito
+        // Verificar que el ID del evento NO esté en el Set de eventos inscritos
+        if (subscribedEventIds.has(eventoId)) {
+          return false;
+        }
       }
     }
     // Si subscriptionFilter === "all", no filtrar por inscripción
+    // Si loadingSubscriptions === true, no filtrar por inscripción hasta que se carguen
 
     return true;
   });

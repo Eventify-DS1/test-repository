@@ -505,11 +505,14 @@ class ReseñaViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def eventos_calificables(self, request):
         """
-        Retorna los eventos finalizados donde el usuario asistió
+        Retorna los eventos finalizados donde el usuario asistió (confirmó asistencia)
         y aún no ha calificado.
         """
-        # Eventos donde el usuario está inscrito
-        inscripciones = Inscripcion.objects.filter(usuario=request.user)
+        # Eventos donde el usuario está inscrito Y confirmó asistencia
+        inscripciones = Inscripcion.objects.filter(
+            usuario=request.user,
+            asistencia_confirmada=True
+        )
         eventos_inscritos = [insc.evento for insc in inscripciones]
         
         # Filtrar eventos finalizados
