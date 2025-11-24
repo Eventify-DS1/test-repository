@@ -9,7 +9,7 @@ from rest_framework.decorators import action
 from django.contrib.auth.models import AnonymousUser
 from .models import Usuario, Rol
 from .serializer import UsuarioSerializer, RolSerializer, EstadisticasUsuariosSerializer
-
+from .tasks import send_email_user_created
 
 class RolViewSet(viewsets.ModelViewSet):
     """
@@ -131,7 +131,8 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         No se asigna ningún campo automático aquí porque la lógica
         de encriptar contraseñas ya está dentro del serializer.
         """
-        serializer.save()
+        user_created = serializer.save()
+        send_email_user_created.delay(user_created.id, user_created.username, user_created.email)
 
     def create(self, request, *args, **kwargs):
         """
@@ -158,13 +159,19 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             headers=headers
         )
         
-        # Se envían las cookies usando httpOnly y Secure
+        # Se envían las cookies usando httpOnly y Secure con tiempo de expiración
+        # Access token: 20 minutos (1200 segundos)
+        # Refresh token: 1 día (86400 segundos)
+        # Nota: samesite='Lax' funciona en desarrollo local con CORS configurado
         response.set_cookie(
             key='access',
             value=access,
             httponly=True,
             secure=False,  # True en producción con HTTPS, False para desarrollo local
-            samesite='Lax'  # 'None' requiere secure=True, 'Lax' funciona en local
+            samesite='Lax',  # 'Lax' funciona en desarrollo local con CORS
+            max_age=1200,  # 20 minutos en segundos
+            path='/',  # Disponible en todas las rutas
+            domain=None,  # None permite que funcione en localhost sin especificar dominio
         )
         
         response.set_cookie(
@@ -172,7 +179,10 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             value=str(refresh),
             httponly=True,
             secure=False,  # True en producción con HTTPS, False para desarrollo local
-            samesite='Lax'
+            samesite='Lax',  # 'Lax' funciona en desarrollo local con CORS
+            max_age=86400,  # 1 día en segundos
+            path='/',  # Disponible en todas las rutas
+            domain=None,  # None permite que funcione en localhost sin especificar dominio
         )
         
         return response

@@ -24,6 +24,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/users-utils/', include('apps.usuarios.urls')),
     path('api/events-utils/', include('apps.eventos.urls')),
+    path('api/notifications-utils/', include('apps.notificaciones.urls')),
 ]
 
 # Servir archivos MEDIA en desarrollo

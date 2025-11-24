@@ -15,7 +15,7 @@ from pathlib import Path
 import environ
 from datetime import timedelta
 import dj_database_url  
-from celery.schedules import crontab
+from celery.schedules import crontab, schedule
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',              
     'django_celery_beat',
+    'pytz',
     # Apps locales
     'apps.usuarios',
     'apps.eventos',
@@ -116,13 +117,13 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-co'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Bogota'  # Cambiar de 'UTC' a 'America/Bogota'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = True  # Asegúrate de que esto esté en True
 
 
 # Archivos estáticos y multimedia
@@ -143,7 +144,6 @@ REST_FRAMEWORK = {
         'apps.usuarios.auth.CookieJWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_FILTER_BACKENDS': [
@@ -188,30 +188,60 @@ CORS_ALLOW_ALL_ORIGINS = True
 # Importante añadir en el frontend credentials: 'include' para que funcione
 CORS_ALLOW_CREDENTIALS = True
 
+# Configuración adicional para asegurar que las cookies funcionen
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Permitir que las cookies se envíen en las solicitudes
+CORS_EXPOSE_HEADERS = ['Set-Cookie']
+
 # --- CONFIGURACIÓN DE REAL-TIME & TAREAS ---
 
 # 1. Configuración de Celery
 CELERY_BROKER_URL = REDIS_URL # Lee la URL que pusimos en el .env
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_BACKEND = REDIS_URL # Almacenar resultados de las tareas en Redis
+CELERY_ACCEPT_CONTENT = ['json'] # Aceptar contenido en formato JSON
+CELERY_TASK_SERIALIZER = 'json' # Serializar tareas en formato JSON
 CELERY_TIMEZONE = 'America/Bogota' # O tu zona horaria
 
-# 2. Configuración de Django Channels
+
+EMAIL_BACKEND = env('EMAIL_BACKEND',default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST= env('EMAIL_HOST',default='smtp.gmail.com')
+EMAIL_PORT=env.int('EMAIL_PORT',default=587)
+EMAIL_USE_TLS=env.bool('EMAIL_USE_TLS',default=True)
+EMAIL_HOST_USER=env('EMAIL_HOST_USER',default='eventifyuv@gmail.com')
+EMAIL_HOST_PASSWORD=env('EMAIL_HOST_PASSWORD',default='')
+DEFAULT_FROM_EMAIL=env('DEFAULT_FROM_EMAIL',default=EMAIL_HOST_USER)
+
+
+
+CELERY_BEAT_SCHEDULE = {
+    'notificar-eventos-proximos': {
+        'task': 'apps.notificaciones.tasks.notificar_eventos_proximos',
+        'schedule': schedule(run_every=timedelta(seconds=15)),  # Cada 15 segundos
+    },
+    'limpiar-notificaciones-eventos-finalizados': {
+        'task': 'apps.notificaciones.tasks.limpiar_notificaciones_eventos_finalizados',
+        'schedule': schedule(run_every=timedelta(hours=12)),  # Cada 12 horas (medio día)
+    },
+}
+
 CHANNEL_LAYERS = {
+
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
             "hosts": [REDIS_URL],
-        },
-    },
-}
-
-CELERY_BEAT_SCHEDULE = {
-    # Nombre único de la tarea
-    'chequear-eventos-cada-minuto': { 
-        # Ruta a la función que creamos arriba
-        'task': 'apps.eventos.tasks.verificar_eventos_15_minutos', 
-        # Frecuencia: Cada 1 minuto
-        'schedule': crontab(minute='*'), 
-    },
+        }
+    
+    }
 }

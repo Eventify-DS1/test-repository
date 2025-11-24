@@ -6,7 +6,7 @@ from .models import Evento, CategoriaEvento, Inscripcion
 from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer
 from rest_framework.decorators import action
 from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer
-
+from .tasks import send_email_task
 
 class CategoriaEventoViewSet(viewsets.ModelViewSet):
     """
@@ -96,7 +96,8 @@ class EventoViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):  
         #Asigna automáticamente el organizador (usuario autenticado)
         #antes de guardar el evento.
-        serializer.save(organizador=self.request.user)
+        event = serializer.save(organizador=self.request.user)
+        send_email_task.delay(event.id, f"Evento {event.titulo} creado correctamente", self.request.user.email)
 
 
     def create(self, request, *args, **kwargs):
