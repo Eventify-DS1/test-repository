@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getEventosStatsRequest, getEventosRequest, getCategoriasRequest, verifyTokenRequest } from "@/api/auth";
+import { getUserInscriptionsRequest } from "@/api/events";
 import { toast } from "sonner";
 import { getImageUrl } from "@/utils/imageHelpers";
 
@@ -51,10 +52,14 @@ const Search = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState("");
+  const [subscriptionFilter, setSubscriptionFilter] = useState<string>("all"); // all, subscribed, not_subscribed
+  const [sortBy, setSortBy] = useState<string>("date"); // date, popular, capacity
   const [totalEventos, setTotalEventos] = useState(0);
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [subscribedEventIds, setSubscribedEventIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [loadingSubscriptions, setLoadingSubscriptions] = useState(true);
 
 
   useEffect(() => {
@@ -88,6 +93,33 @@ const Search = () => {
     };
 
     fetchInitialData();
+  }, []);
+
+  // Cargar inscripciones del usuario
+  useEffect(() => {
+    const fetchUserSubscriptions = async () => {
+      try {
+        setLoadingSubscriptions(true);
+        const response = await getUserInscriptionsRequest();
+        const inscripciones = Array.isArray(response.data) ? response.data : 
+                             (response.data.results || []);
+        
+        // Crear un Set con los IDs de eventos en los que está inscrito
+        const eventIds = new Set<number>(
+          inscripciones.map((inscripcion: any) => inscripcion.evento?.id || inscripcion.evento)
+            .filter((id: any) => id !== undefined)
+        );
+        
+        setSubscribedEventIds(eventIds);
+      } catch (error) {
+        console.error('Error al cargar inscripciones:', error);
+        setSubscribedEventIds(new Set());
+      } finally {
+        setLoadingSubscriptions(false);
+      }
+    };
+
+    fetchUserSubscriptions();
   }, []);
 
 
@@ -140,12 +172,53 @@ const Search = () => {
     });
   };
 
-  const filteredEvents = dateFilter 
-    ? eventos.filter(evento => {
-        const eventoDate = new Date(evento.fecha_inicio).toISOString().split('T')[0];
-        return eventoDate === dateFilter;
-      })
-    : eventos;
+  const filteredEvents = eventos.filter(evento => {
+    // Filtro por fecha
+    if (dateFilter) {
+      const eventoDate = new Date(evento.fecha_inicio).toISOString().split('T')[0];
+      if (eventoDate !== dateFilter) {
+        return false;
+      }
+    }
+
+    // Filtro por inscripción
+    if (subscriptionFilter === "subscribed") {
+      // Solo eventos donde el usuario está inscrito
+      if (!subscribedEventIds.has(evento.id)) {
+        return false;
+      }
+    } else if (subscriptionFilter === "not_subscribed") {
+      // Solo eventos donde el usuario NO está inscrito
+      if (subscribedEventIds.has(evento.id)) {
+        return false;
+      }
+    }
+    // Si subscriptionFilter === "all", no filtrar por inscripción
+
+    return true;
+  });
+
+  // Ordenar eventos según el criterio seleccionado
+  const sortedEvents = [...filteredEvents].sort((a, b) => {
+    switch (sortBy) {
+      case "date":
+        // Fecha (más reciente primero)
+        return new Date(b.fecha_inicio).getTime() - new Date(a.fecha_inicio).getTime();
+      
+      case "popular":
+        // Más popular (más inscritos primero)
+        const inscritosA = a.numero_inscritos || 0;
+        const inscritosB = b.numero_inscritos || 0;
+        return inscritosB - inscritosA;
+      
+      case "capacity":
+        // Capacidad (mayor capacidad primero)
+        return b.aforo - a.aforo;
+      
+      default:
+        return 0;
+    }
+  });
 
   const categories = [
     { value: "all", label: "Todas las categorías" },
@@ -182,7 +255,7 @@ const Search = () => {
             <h2 className="text-lg font-semibold">Filtros de búsqueda</h2>
           </div>
           
-          <div className="grid md:grid-cols-4 gap-4">
+          <div className="grid md:grid-cols-5 gap-4">
             <div className="relative">
               <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -214,6 +287,17 @@ const Search = () => {
               onChange={(e) => setDateFilter(e.target.value)}
             />
 
+            <Select value={subscriptionFilter} onValueChange={setSubscriptionFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="Inscripción" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los eventos</SelectItem>
+                <SelectItem value="subscribed">Eventos inscritos</SelectItem>
+                <SelectItem value="not_subscribed">Eventos no inscritos</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select>
               <SelectTrigger>
                 <SelectValue placeholder="Todas las ubicaciones" />
@@ -236,6 +320,7 @@ const Search = () => {
                 setSearchTerm("");
                 setCategoryFilter("all");
                 setDateFilter("");
+                setSubscriptionFilter("all");
               }}
             >
               Limpiar filtros
@@ -255,10 +340,10 @@ const Search = () => {
         <div>
           <div className="flex justify-between items-center mb-6">
             <p className="text-muted-foreground">
-              Mostrando <span className="font-bold text-foreground">{filteredEvents.length}</span> de{" "}
+              Mostrando <span className="font-bold text-foreground">{sortedEvents.length}</span> de{" "}
               <span className="font-bold text-foreground">{totalEventos}</span> eventos
             </p>
-            <Select defaultValue="date">
+            <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Ordenar por" />
               </SelectTrigger>
@@ -274,9 +359,9 @@ const Search = () => {
             <div className="text-center py-16">
               <p className="text-muted-foreground">Cargando eventos...</p>
             </div>
-          ) : filteredEvents.length > 0 ? (
+          ) : sortedEvents.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredEvents.map((evento, index) => (
+              {sortedEvents.map((evento, index) => (
                 <div
                   key={evento.id}
                   className="animate-fade-in"
@@ -312,6 +397,7 @@ const Search = () => {
                     setSearchTerm("");
                     setCategoryFilter("all");
                     setDateFilter("");
+                    setSubscriptionFilter("all");
                   }}
                 >
                   Limpiar filtros

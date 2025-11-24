@@ -2,7 +2,7 @@ import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/Header";
@@ -19,6 +19,9 @@ import {
 import { getImageUrl } from "@/utils/imageHelpers";
 import { getCurrentUserRequest } from "@/api/users";
 import { deleteEventRequest } from "@/api/events";
+import { getEventReviewsRequest } from "@/api/reviews";
+import ReviewCard from "@/components/events/ReviewCard";
+import { useQuery } from "@tanstack/react-query";
 
 
 // Interface para los datos del backend
@@ -70,14 +73,50 @@ const EventDetail = () => {
   const [asistenciaConfirmada, setAsistenciaConfirmada] = useState(false);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(false);
   const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [codigoConfirmacion, setCodigoConfirmacion] = useState("");
   const [isConfirming, setIsConfirming] = useState(false); 
 
   // Detectar si viene del dashboard o es vista pública
   const isFromDashboard = location.pathname.startsWith('/dashboard');
 
+  // Verificar si el evento terminó (fecha_fin < hoy)
+  const isEventFinished = evento ? new Date(evento.fecha_fin) < new Date() : false;
+
+  // Obtener reviews del evento si terminó
+  const { data: reviews, isLoading: loadingReviews, error: reviewsError } = useQuery({
+    queryKey: ['event-reviews', id],
+    queryFn: async () => {
+      if (!id) return [];
+      try {
+        const response = await getEventReviewsRequest(parseInt(id));
+        // Manejar paginación si existe
+        if (response.data.results) {
+          return response.data.results;
+        }
+        // Si es un array directo
+        if (Array.isArray(response.data)) {
+          return response.data;
+        }
+        return [];
+      } catch (error) {
+        console.error('Error obteniendo reviews:', error);
+        return [];
+      }
+    },
+    enabled: !!id && !!evento && isEventFinished,
+  });
+
   useEffect(() => {
+    // Solo verificar autenticación si estamos en el dashboard (páginas de usuario registrado)
+    // En páginas públicas, no hacer ninguna verificación
+    if (!isFromDashboard) {
+      setIsAuthenticated(false);
+      setIsSubscribed(false);
+      setIsCheckingSubscription(false);
+      return;
+    }
+
     const checkAuthAndSubscription = async () => {
       try {
         await verifyTokenRequest();
@@ -94,7 +133,13 @@ const EventDetail = () => {
             setAsistenciaConfirmada(false);
           }
         }
-      } catch {
+      } catch (error: any) {
+        // Usuario no autenticado - 401 es esperado, no mostrar error
+        const status = error?.response?.status;
+        if (status !== 401) {
+          // Solo loggear errores que no sean 401 (no autorizado)
+          console.error('Error verificando autenticación:', error);
+        }
         setIsAuthenticated(false);
         setIsSubscribed(false);
       } finally {
@@ -103,7 +148,7 @@ const EventDetail = () => {
     };
     
     checkAuthAndSubscription();
-  }, [id]);
+  }, [id, isFromDashboard]);
 
   useEffect(() => {
     const fetchEvento = async () => {
@@ -129,17 +174,27 @@ const EventDetail = () => {
   }, [id]);
 
   useEffect(() =>{
+    // Solo obtener usuario actual si estamos en el dashboard (páginas de usuario registrado)
+    if (!isFromDashboard) {
+      setCurrentUser(null);
+      return;
+    }
+
     const fetchUser = async () => {
       try {
         const res = await getCurrentUserRequest();
         setCurrentUser(res.data);
-      } catch (e) {
-        console.log("No hay usuario autenticado");
+      } catch (e: any) {
+        // Usuario no autenticado - 401 es esperado, no mostrar error
+        const status = e?.response?.status;
+        if (status !== 401) {
+          console.error("Error obteniendo usuario:", e);
+        }
         setCurrentUser(null);
       }
     };
     fetchUser();
-  }, []);
+  }, [isFromDashboard]);
 
   
   const formatDate = (dateString: string) => {
@@ -295,8 +350,22 @@ const EventDetail = () => {
 
   const backRoute = isFromDashboard ? "/dashboard/search" : "/eventos";
   const fromCalendar = location.state?.fromCalendar || false;
-  const backRouteWithCalendar = fromCalendar ? "/calendario" : backRoute;
-  const backText = fromCalendar ? "Volver a calendario" : (isFromDashboard ? "Volver a eventos" : "Volver a eventos");
+  const fromRateEvents = location.state?.fromRateEvents || false;
+  const fromSearch = location.state?.fromSearch || (isFromDashboard && !fromCalendar && !fromRateEvents);
+  
+  let backRouteFinal = backRoute;
+  let backTextFinal = isFromDashboard ? "Volver a eventos" : "Volver a eventos";
+  
+  if (fromCalendar) {
+    backRouteFinal = isFromDashboard ? "/dashboard/calendario" : "/calendario";
+    backTextFinal = "Volver a calendario";
+  } else if (fromRateEvents) {
+    backRouteFinal = "/dashboard/rate";
+    backTextFinal = "Volver a calificar eventos";
+  } else if (fromSearch) {
+    backRouteFinal = "/dashboard/search";
+    backTextFinal = "Volver a buscar eventos";
+  }
 
   const EventContent = () => {
     if (loading) {
@@ -313,9 +382,9 @@ const EventDetail = () => {
           <div className="text-center">
             <p className="text-xl font-semibold mb-4">{error || "Evento no encontrado"}</p>
             <Button variant="outline" asChild>
-              <Link to={backRouteWithCalendar}>
+              <Link to={backRouteFinal}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                {backText}
+                {backTextFinal}
               </Link>
             </Button>
           </div>
@@ -344,10 +413,10 @@ const EventDetail = () => {
 
     return (
       <div className={isFromDashboard ? "p-8" : "container py-12"}>
-        <Button variant="ghost" asChild className="mb-6">
-          <Link to={backRouteWithCalendar}>
+            <Button variant="ghost" asChild className="mb-6">
+          <Link to={backRouteFinal}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            {backText}
+            {backTextFinal}
           </Link>
         </Button>
 
@@ -371,9 +440,76 @@ const EventDetail = () => {
                 </div>
               </div>
 
-              <p className="text-lg text-muted-foreground leading-relaxed">
+              <p className="text-lg text-muted-foreground leading-relaxed mb-6">
                 {evento.descripcion}
               </p>
+
+              {/* Sección de Comentarios y Calificaciones - Solo si el evento terminó */}
+              {isEventFinished && (
+                <div className="pt-6 border-t">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-semibold">Comentarios y Calificaciones</h3>
+                    {isAuthenticated && isSubscribed && asistenciaConfirmada && (
+                      <Button
+                        onClick={() => navigate(`/dashboard/rate/${id}`, { 
+                          state: { 
+                            fromRateEvents: fromRateEvents,
+                            fromSearch: fromSearch 
+                          } 
+                        })}
+                        className="gradient-primary text-white border-0"
+                        size="sm"
+                      >
+                        <Star className="mr-2 h-4 w-4" />
+                        Calificar evento
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {loadingReviews ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    </div>
+                  ) : reviewsError ? (
+                    <div className="text-center py-8 border border-dashed rounded-lg">
+                      <p className="text-muted-foreground mb-4">
+                        Error al cargar los comentarios. Por favor, intenta de nuevo.
+                      </p>
+                    </div>
+                  ) : reviews && Array.isArray(reviews) && reviews.length > 0 ? (
+                    <div className="max-h-[600px] overflow-y-auto pr-2 space-y-4 custom-scrollbar">
+                      {reviews.map((review: any) => (
+                        <ReviewCard
+                          key={review.id}
+                          review={review}
+                          currentUserId={currentUser?.id}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 border border-dashed rounded-lg">
+                      <p className="text-muted-foreground mb-4">
+                        Aún no hay comentarios para este evento.
+                      </p>
+                      {isAuthenticated && isSubscribed && asistenciaConfirmada && (
+                        <Button
+                          onClick={() => navigate(`/dashboard/rate/${id}`, { 
+                            state: { 
+                              fromRateEvents: fromRateEvents,
+                              fromSearch: fromSearch 
+                            } 
+                          })}
+                          className="gradient-primary text-white border-0"
+                          size="sm"
+                        >
+                          <Star className="mr-2 h-4 w-4" />
+                          Sé el primero en calificar
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -478,13 +614,22 @@ const EventDetail = () => {
                 ) : (
                   <>
                     <Button
-                      disabled
+                      onClick={() => navigate('/register')}
                       className="w-full gradient-primary text-white border-0"
                     >
                       Registrarse para asistir
                     </Button>
                     <p className="text-xs text-center text-muted-foreground mt-2">
-                      Solo disponible para usuarios registrados
+                      Debes registrarte para poder inscribirte en eventos
+                    </p>
+                    <p className="text-xs text-center text-muted-foreground">
+                      ¿Ya tienes cuenta?{" "}
+                      <button
+                        onClick={() => navigate('/login')}
+                        className="text-primary hover:underline font-medium"
+                      >
+                        Inicia sesión
+                      </button>
                     </p>
                   </>
                 )}

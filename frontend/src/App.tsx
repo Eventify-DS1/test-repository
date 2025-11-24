@@ -16,6 +16,9 @@ import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import RateEvents from "./pages/RateEvents";
+import RateEventForm from "./pages/RateEventForm";
+import ConfirmAttendance from "./pages/ConfirmAttendance";
+import DashboardCalendar from "./pages/DashboardCalendar";
 import EditEvent from "./pages/EditEvent";
 
 const queryClient = new QueryClient();
@@ -34,12 +37,15 @@ const App = () => {
           <Route path="/event/:id" element={<EventDetail />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/dashboard/search" element={<Search />} />
+          <Route path="/dashboard/calendario" element={<DashboardCalendar />} />
           <Route path="/dashboard/event/:id" element={<EventDetail />} /> 
           <Route path="/dashboard/create" element={<CreateEvent />} />
           <Route path="/dashboard/profile" element={<Profile />} />
           <Route path="/register" element={<RegisterPage />}/>
           <Route path="/login" element={<LoginPage />}/>
+          <Route path="/dashboard/confirmar-asistencia" element={<ConfirmAttendance />} />
           <Route path="/dashboard/rate" element={<RateEvents />} />
+          <Route path="/dashboard/rate/:eventId" element={<RateEventForm />} />
           <Route path="/dashboard/eventos/editar/:id" element={<EditEvent />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

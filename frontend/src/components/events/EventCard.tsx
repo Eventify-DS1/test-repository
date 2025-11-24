@@ -23,6 +23,7 @@ interface EventCardProps {
   capacity: number;
   registered: number;
   image?: string;
+  skipAuthCheck?: boolean; // Si es true, no verifica autenticación (para páginas públicas)
 }
 
 const EventCard = ({
@@ -35,6 +36,7 @@ const EventCard = ({
   capacity,
   registered,
   image,
+  skipAuthCheck = false,
 }: EventCardProps) => {
   const location_hook = useLocation();
   const navigate = useNavigate();
@@ -53,8 +55,16 @@ const EventCard = ({
   
   const spotsLeft = capacity - registered;
   
-  // Verificar autenticación y estado de inscripción
+  // Verificar autenticación y estado de inscripción (solo si no se omite)
   useEffect(() => {
+    // Si skipAuthCheck es true, no hacer ninguna verificación
+    if (skipAuthCheck) {
+      setIsAuthenticated(false);
+      setIsSubscribed(false);
+      setIsChecking(false);
+      return;
+    }
+
     const checkAuthAndSubscription = async () => {
       try {
         // Verificar si el usuario está autenticado
@@ -69,8 +79,13 @@ const EventCard = ({
           // Si falla, asumir que no está inscrito
           setIsSubscribed(false);
         }
-      } catch (error) {
-        // Usuario no autenticado
+      } catch (error: any) {
+        // Usuario no autenticado - 401 es esperado, no mostrar error
+        const status = error?.response?.status;
+        if (status !== 401) {
+          // Solo loggear errores que no sean 401 (no autorizado)
+          console.error('Error verificando autenticación:', error);
+        }
         setIsAuthenticated(false);
         setIsSubscribed(false);
       } finally {
@@ -79,7 +94,7 @@ const EventCard = ({
     };
     
     checkAuthAndSubscription();
-  }, [id]);
+  }, [id, skipAuthCheck]);
   
   const handleSubscribe = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -212,32 +227,56 @@ const EventCard = ({
       </CardContent>
       
       <CardFooter className="flex flex-col gap-2">
-        {isAuthenticated && !isChecking && (
-          <Button
-            onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
-            disabled={isLoading || spotsLeft <= 0}
-            className={`w-full ${
-              isSubscribed
-                ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground"
-                : "gradient-primary text-white border-0"
-            }`}
-            variant={isSubscribed ? "secondary" : "default"}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {isSubscribed ? "Desinscribiendo..." : "Inscribiendo..."}
-              </>
-            ) : isSubscribed ? (
-              <>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-                Inscrito
-              </>
-            ) : spotsLeft <= 0 ? (
-              "Evento lleno"
+        {!isChecking && (
+          <>
+            {isAuthenticated ? (
+              <Button
+                onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
+                disabled={isLoading || spotsLeft <= 0}
+                className={`w-full ${
+                  isSubscribed
+                    ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                    : "gradient-primary text-white border-0"
+                }`}
+                variant={isSubscribed ? "secondary" : "default"}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isSubscribed ? "Desinscribiendo..." : "Inscribiendo..."}
+                  </>
+                ) : isSubscribed ? (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Inscrito
+                  </>
+                ) : spotsLeft <= 0 ? (
+                  "Evento lleno"
+                ) : (
+                  "Inscribirse"
+                )}
+              </Button>
             ) : (
-              "Inscribirse"
+              <Button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate('/register');
+                }}
+                className="w-full gradient-primary text-white border-0"
+              >
+                Registrarse para asistir
+              </Button>
             )}
+          </>
+        )}
+        {isChecking && (
+          <Button
+            disabled
+            className="w-full gradient-primary text-white border-0"
+          >
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Verificando...
           </Button>
         )}
         <Button asChild className="w-full" variant="outline">

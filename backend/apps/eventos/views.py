@@ -262,6 +262,147 @@ class EventoViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_200_OK
         )
+    
+    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated], url_path='confirmar-por-codigo')
+    def confirmar_asistencia_por_codigo(self, request):
+        """
+        Confirma la asistencia usando solo el código de confirmación.
+        El backend busca automáticamente a qué evento pertenece el código.
+        """
+        codigo = request.data.get('codigo', '').strip().upper()
+        
+        if not codigo:
+            return Response(
+                {'error': 'Debes proporcionar un código de confirmación.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Buscar el evento por código
+        try:
+            evento = Evento.objects.get(codigo_confirmacion__iexact=codigo)
+        except Evento.DoesNotExist:
+            return Response(
+                {'error': 'Código de confirmación no válido. Verifica el código e intenta nuevamente.'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Verificar si el usuario está inscrito
+        try:
+            inscripcion = Inscripcion.objects.get(
+                usuario=request.user,
+                evento=evento
+            )
+        except Inscripcion.DoesNotExist:
+            return Response(
+                {
+                    'error': f'No estás inscrito en el evento "{evento.titulo}".',
+                    'evento_titulo': evento.titulo
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar si ya está confirmado
+        if inscripcion.asistencia_confirmada:
+            from django.utils import timezone
+            return Response(
+                {
+                    'message': 'Tu asistencia ya estaba confirmada.',
+                    'evento_titulo': evento.titulo,
+                    'fecha_confirmacion': inscripcion.fecha_confirmacion.isoformat() if inscripcion.fecha_confirmacion else None
+                },
+                status=status.HTTP_200_OK
+            )
+        
+        # Confirmar asistencia
+        from django.utils import timezone
+        inscripcion.asistencia_confirmada = True
+        inscripcion.fecha_confirmacion = timezone.now()
+        inscripcion.save()
+        
+        serializer = InscripcionDetalleSerializer(inscripcion)
+        return Response(
+            {
+                'message': f'¡Asistencia confirmada exitosamente para "{evento.titulo}"!',
+                'evento_titulo': evento.titulo,
+                'inscripcion': serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
+    
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def eventos_populares(self, request):
+        """
+        Retorna los eventos más populares (con más inscritos).
+        Ordenados por número de inscritos descendente.
+        """
+        # Obtener todos los eventos
+        eventos = Evento.objects.all()
+        
+        # Ordenar por número de inscritos (descendente)
+        eventos_ordenados = sorted(
+            eventos,
+            key=lambda e: e.inscripciones.count(),
+            reverse=True
+        )
+        
+        # Tomar solo los primeros 3
+        eventos_populares = eventos_ordenados[:3]
+        
+        serializer = self.get_serializer(eventos_populares, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eventos_proximos_inscritos(self, request):
+        """
+        Retorna los eventos próximos donde el usuario está inscrito.
+        Eventos donde fecha_inicio >= hoy y el usuario está inscrito.
+        """
+        from django.utils import timezone
+        ahora = timezone.now()
+        
+        # Obtener IDs de eventos donde el usuario está inscrito
+        inscripciones = Inscripcion.objects.filter(
+            usuario=request.user
+        ).select_related('evento')
+        
+        # Filtrar eventos próximos (fecha_inicio >= ahora)
+        eventos_proximos = [
+            inscripcion.evento for inscripcion in inscripciones
+            if inscripcion.evento.fecha_inicio >= ahora
+        ]
+        
+        # Ordenar por fecha_inicio (más próximos primero)
+        eventos_proximos.sort(key=lambda e: e.fecha_inicio)
+        
+        serializer = self.get_serializer(eventos_proximos, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eventos_asistidos(self, request):
+        """
+        Retorna los eventos asistidos por el usuario.
+        Eventos donde fecha_fin < hoy y asistencia_confirmada = True.
+        """
+        from django.utils import timezone
+        ahora = timezone.now()
+        
+        # Obtener inscripciones confirmadas del usuario
+        inscripciones_confirmadas = Inscripcion.objects.filter(
+            usuario=request.user,
+            asistencia_confirmada=True
+        ).select_related('evento')
+        
+        # Filtrar eventos finalizados (fecha_fin < ahora)
+        eventos_asistidos = [
+            inscripcion.evento for inscripcion in inscripciones_confirmadas
+            if inscripcion.evento.fecha_fin < ahora
+        ]
+        
+        # Ordenar por fecha_fin (más recientes primero)
+        eventos_asistidos.sort(key=lambda e: e.fecha_fin, reverse=True)
+        
+        serializer = self.get_serializer(eventos_asistidos, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
         
     
 class InscripcionViewSet(viewsets.ModelViewSet):

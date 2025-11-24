@@ -69,3 +69,25 @@ export const confirmAttendanceRequest = (eventId, codigo) => {
         codigo: codigo
     });
 };
+
+// Confirmar asistencia solo con código (el backend busca el evento)
+export const confirmAttendanceByCodeRequest = (codigo) => {
+    return apiClient.post(`/events-utils/eventos/confirmar-por-codigo/`, {
+        codigo: codigo
+    });
+};
+
+// Obtener eventos próximos donde el usuario está inscrito
+export const getUpcomingSubscribedEventsRequest = () => {
+    return apiClient.get('/events-utils/eventos/eventos_proximos_inscritos/');
+};
+
+// Obtener eventos asistidos por el usuario
+export const getAttendedEventsRequest = () => {
+    return apiClient.get('/events-utils/eventos/eventos_asistidos/');
+};
+
+// Obtener los 3 eventos más populares (con más inscritos)
+export const getPopularEventsRequest = () => {
+    return apiClient.get('/events-utils/eventos/eventos_populares/');
+};

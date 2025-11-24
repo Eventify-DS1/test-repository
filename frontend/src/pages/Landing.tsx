@@ -549,6 +549,7 @@ const Landing = () => {
               {featuredEvents.map((event) => (
                 <ScrollRevealSection key={event.id} direction="scale">
                   <EventCard
+                    skipAuthCheck={true}
                     id={event.id}
                     title={event.title}
                     category={event.category}

@@ -232,6 +232,7 @@ const EventsList = () => {
                     capacity={evento.aforo}
                     registered={evento.numero_inscritos || 0}
                     image={getImageUrl(evento.foto)}
+                    skipAuthCheck={true}
                   />
                 </div>
               ))}

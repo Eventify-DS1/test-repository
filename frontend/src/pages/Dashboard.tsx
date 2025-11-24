@@ -1,11 +1,16 @@
 import Sidebar from "@/components/layout/Sidebar";
 import { Input } from "@/components/ui/input";
-import { Search, Calendar, Clock, TrendingUp, Sparkles } from "lucide-react";
+import { Search, Calendar, Clock, TrendingUp, Sparkles, Zap, ArrowRight } from "lucide-react";
 import EventCard from "@/components/events/EventCard";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
-import { getEventosRequest } from "@/api/auth";
+import { useNavigate } from "react-router-dom";
 import { getImageUrl } from "@/utils/imageHelpers";
+import { 
+  getPopularEventsRequest,
+  getUpcomingSubscribedEventsRequest,
+  getAttendedEventsRequest
+} from "@/api/events";
 
 // Interface para eventos del backend
 interface EventoBackend {
@@ -38,9 +43,13 @@ interface EventoMapeado {
 }
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const [popularEvents, setPopularEvents] = useState<EventoMapeado[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<EventoMapeado[]>([]);
-  const [allEvents, setAllEvents] = useState<EventoMapeado[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [attendedEvents, setAttendedEvents] = useState<EventoMapeado[]>([]);
+  const [loadingPopular, setLoadingPopular] = useState(true);
+  const [loadingUpcoming, setLoadingUpcoming] = useState(true);
+  const [loadingAttended, setLoadingAttended] = useState(true);
 
   // Funciones helper para formatear datos del backend
   const formatDate = (dateString: string) => {
@@ -60,62 +69,81 @@ const Dashboard = () => {
     });
   };
 
-  // Cargar eventos del backend
+  // Función para mapear eventos del backend al formato de EventCard
+  const mapEventToCard = (evento: EventoBackend): EventoMapeado => ({
+    id: evento.id.toString(),
+    title: evento.titulo,
+    category: evento.categoria?.nombre || "Sin categoría",
+    date: formatDate(evento.fecha_inicio),
+    time: formatTime(evento.fecha_inicio),
+    location: evento.ubicacion,
+    capacity: evento.aforo,
+    registered: evento.numero_inscritos || 0,
+    image: getImageUrl(evento.foto)
+  });
+
+  // Cargar eventos populares (los 3 con más inscritos)
   useEffect(() => {
-    const fetchEventos = async () => {
+    const fetchPopularEvents = async () => {
       try {
-        setLoading(true);
-        const response = await getEventosRequest();
+        setLoadingPopular(true);
+        const response = await getPopularEventsRequest();
         const eventosData = response.data.results || response.data;
         const eventos = Array.isArray(eventosData) ? eventosData : [];
         
-        // Mapear eventos al formato que espera EventCard
-        const eventosMapeados: EventoMapeado[] = eventos.map((evento: EventoBackend) => ({
-          id: evento.id.toString(),
-          title: evento.titulo,
-          category: evento.categoria?.nombre || "Sin categoría",
-          date: formatDate(evento.fecha_inicio),
-          time: formatTime(evento.fecha_inicio),
-          location: evento.ubicacion,
-          capacity: evento.aforo,
-          registered: evento.numero_inscritos || 0,
-          image: getImageUrl(evento.foto)
-        }));
-
-        // Filtrar eventos próximos (fecha_inicio >= hoy)
-        const hoy = new Date();
-        hoy.setHours(0, 0, 0, 0);
-        
-        const eventosProximos = eventos
-          .filter((evento: EventoBackend) => {
-            const fechaInicio = new Date(evento.fecha_inicio);
-            fechaInicio.setHours(0, 0, 0, 0);
-            return fechaInicio >= hoy;
-          })
-          .map((evento: EventoBackend) => ({
-            id: evento.id.toString(),
-            title: evento.titulo,
-            category: evento.categoria?.nombre || "Sin categoría",
-            date: formatDate(evento.fecha_inicio),
-            time: formatTime(evento.fecha_inicio),
-            location: evento.ubicacion,
-            capacity: evento.aforo,
-            registered: evento.numero_inscritos || 0,
-            image: getImageUrl(evento.foto)
-          }));
-
-        setUpcomingEvents(eventosProximos);
-        setAllEvents(eventosMapeados);
+        const eventosMapeados = eventos.map(mapEventToCard);
+        setPopularEvents(eventosMapeados);
       } catch (error) {
-        console.error('Error al cargar eventos:', error);
-        setUpcomingEvents([]);
-        setAllEvents([]);
+        console.error('Error al cargar eventos populares:', error);
+        setPopularEvents([]);
       } finally {
-        setLoading(false);
+        setLoadingPopular(false);
       }
     };
 
-    fetchEventos();
+    fetchPopularEvents();
+  }, []);
+
+  // Cargar eventos próximos inscritos
+  useEffect(() => {
+    const fetchUpcomingEvents = async () => {
+      try {
+        setLoadingUpcoming(true);
+        const response = await getUpcomingSubscribedEventsRequest();
+        const eventos = Array.isArray(response.data) ? response.data : [];
+        
+        const eventosMapeados = eventos.map(mapEventToCard);
+        setUpcomingEvents(eventosMapeados);
+      } catch (error) {
+        console.error('Error al cargar eventos próximos inscritos:', error);
+        setUpcomingEvents([]);
+      } finally {
+        setLoadingUpcoming(false);
+      }
+    };
+
+    fetchUpcomingEvents();
+  }, []);
+
+  // Cargar eventos asistidos
+  useEffect(() => {
+    const fetchAttendedEvents = async () => {
+      try {
+        setLoadingAttended(true);
+        const response = await getAttendedEventsRequest();
+        const eventos = Array.isArray(response.data) ? response.data : [];
+        
+        const eventosMapeados = eventos.map(mapEventToCard);
+        setAttendedEvents(eventosMapeados);
+      } catch (error) {
+        console.error('Error al cargar eventos asistidos:', error);
+        setAttendedEvents([]);
+      } finally {
+        setLoadingAttended(false);
+      }
+    };
+
+    fetchAttendedEvents();
   }, []);
 
   return (
@@ -123,7 +151,7 @@ const Dashboard = () => {
       <Sidebar />
       
       <main className="flex-1 p-8 bg-gradient-to-br from-background via-primary/5 to-secondary/5">
-        {/* Welcome Section - Super Atractivo */}
+        {/* Welcome Section */}
         <div className="mb-8 relative">
           <div className="absolute -top-4 -left-4 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
           <div className="absolute top-0 right-0 w-40 h-40 bg-secondary/10 rounded-full blur-3xl" />
@@ -137,7 +165,7 @@ const Dashboard = () => {
                 <h1 className="text-2xl md:text-3xl font-bold">
                   ¡Bienvenido de nuevo!
                 </h1>
-                <p className="text-muted-foreground font-medium">Aquí están tus próximos eventos</p>
+                <p className="text-muted-foreground font-medium">Aquí están tus eventos</p>
               </div>
             </div>
             
@@ -157,7 +185,7 @@ const Dashboard = () => {
                   <Clock className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-secondary">0</div>
+                  <div className="text-2xl font-bold text-secondary">{attendedEvents.length}</div>
                   <div className="text-xs text-muted-foreground font-medium">Asistidos</div>
                 </div>
               </div>
@@ -167,7 +195,7 @@ const Dashboard = () => {
                   <TrendingUp className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-accent">0</div>
+                  <div className="text-2xl font-bold text-accent">{upcomingEvents.length + attendedEvents.length}</div>
                   <div className="text-xs text-muted-foreground font-medium">Total participación</div>
                 </div>
               </div>
@@ -175,16 +203,71 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Search Bar - Mejorado */}
+        {/* Search Bar */}
         <div className="mb-8 relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-primary z-10" />
           <Input
             placeholder="Buscar eventos por nombre..."
             className="pl-12 h-14 rounded-2xl border-2 border-primary/20 focus:border-primary shadow-card bg-white text-base"
+            onFocus={() => navigate('/dashboard/search')}
           />
         </div>
 
-        {/* Upcoming Events - Más Colorido */}
+        {/* Los más populares - Nueva sección arriba */}
+        <section className="mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl gradient-accent flex items-center justify-center">
+                <Zap className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 mb-2">
+                  <Zap className="h-4 w-4 text-accent" />
+                  <span className="text-xs font-bold text-accent">Eventos Destacados</span>
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold">Los más populares</h2>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/dashboard/search')}
+              className="border-2 border-primary text-primary hover:bg-primary hover:text-white transition-bounce"
+            >
+              Ver todos
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+          
+          {loadingPopular ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Cargando eventos populares...</p>
+            </div>
+          ) : popularEvents.length > 0 ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {popularEvents.map((event) => (
+                <div key={event.id} className="hover-lift">
+                  <EventCard
+                    id={event.id}
+                    title={event.title}
+                    category={event.category}
+                    date={event.date}
+                    time={event.time}
+                    location={event.location}
+                    capacity={event.capacity}
+                    registered={event.registered}
+                    image={event.image}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No hay eventos populares disponibles</p>
+            </div>
+          )}
+        </section>
+
+        {/* Eventos Próximos Inscritos */}
         <section className="mb-12">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
@@ -195,7 +278,7 @@ const Dashboard = () => {
             </div>
           </div>
           
-          {loading ? (
+          {loadingUpcoming ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground">Cargando eventos...</p>
             </div>
@@ -219,12 +302,12 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">No hay eventos próximos disponibles</p>
+              <p className="text-muted-foreground">No tienes eventos próximos inscritos</p>
             </div>
           )}
         </section>
 
-        {/* Past Events - Más Llamativo */}
+        {/* Eventos Asistidos */}
         <section>
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-3">
@@ -234,21 +317,21 @@ const Dashboard = () => {
               <h2 className="text-2xl md:text-3xl font-bold">Eventos Asistidos</h2>
             </div>
             <Button
-              disabled
-              className="gradient-accent text-white border-0 opacity-60 cursor-not-allowed"
+              onClick={() => navigate('/dashboard/rate')}
+              className="gradient-accent text-white border-0"
             >
               <Sparkles className="mr-2 h-4 w-4" />
               Calificar eventos
             </Button>
           </div>
           
-          {loading ? (
+          {loadingAttended ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground">Cargando eventos...</p>
             </div>
-          ) : allEvents.length > 0 ? (
+          ) : attendedEvents.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {allEvents.map((event) => (
+              {attendedEvents.map((event) => (
                 <div key={event.id} className="hover-lift">
                   <EventCard
                     id={event.id}
@@ -266,17 +349,11 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">No hay eventos disponibles</p>
+              <p className="text-muted-foreground">
+                Aún no has asistido a ningún evento. ¡Inscríbete y confirma tu asistencia!
+              </p>
             </div>
           )}
-
-          <div className="mt-8 rounded-2xl border border-dashed border-muted-foreground/40 bg-muted/30 p-6 text-center">
-            <Sparkles className="mx-auto mb-3 h-6 w-6 text-muted-foreground" />
-            <h3 className="text-lg font-semibold">Próximamente</h3>
-            <p className="text-sm text-muted-foreground">
-              Muy pronto podrás visualizar tus eventos asistidos y dejar calificaciones desde aquí.
-            </p>
-          </div>
         </section>
       </main>
     </div>
