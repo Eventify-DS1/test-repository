@@ -1,4 +1,0 @@
-_nvx_utf8validator
-_nvx_xormasker
-autobahn
-twisted

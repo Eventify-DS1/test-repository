@@ -14,21 +14,13 @@ import os
 from pathlib import Path
 import environ
 from datetime import timedelta
-<<<<<<< HEAD
 import dj_database_url
-=======
-import dj_database_url  
 from celery.schedules import crontab, schedule
->>>>>>> 7a5532a136307fccf049b016240b7c73a771ffe7
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env()
-<<<<<<< HEAD
 PROJECT_ROOT = BASE_DIR.parent
-=======
-PROJECT_ROOT= BASE_DIR.parent
->>>>>>> 7a5532a136307fccf049b016240b7c73a771ffe7
 environ.Env.read_env(os.path.join(PROJECT_ROOT, '.env'))
 
 SECRET_KEY = os.environ.get('SECRET_KEY') or env('SECRET_KEY', default='django-insecure-temporary-key-change-in-production')
@@ -36,7 +28,10 @@ DEBUG = env.bool('DEBUG', default=False) #convierte la cadena "True" o "False" d
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
-REDIS_URL = f"redis://:{env('REDIS_PASS')}@{env('REDIS_ENDPOINT')}"
+# Configuración de Redis con valores por defecto
+REDIS_PASS = env('REDIS_PASS', default='')
+REDIS_ENDPOINT = env('REDIS_ENDPOINT', default='localhost:6379')
+REDIS_URL = f"redis://:{REDIS_PASS}@{REDIS_ENDPOINT}" if REDIS_PASS else f"redis://{REDIS_ENDPOINT}"
 
 # Application definition
 
@@ -54,7 +49,6 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',              
     'django_celery_beat',
-    'pytz',
     # Apps locales
     'apps.usuarios',
     'apps.eventos',
@@ -125,11 +119,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-<<<<<<< HEAD
 LANGUAGE_CODE = 'es-co'  # Cambiar a español de Colombia
-=======
-LANGUAGE_CODE = 'es-co'
->>>>>>> 7a5532a136307fccf049b016240b7c73a771ffe7
 
 TIME_ZONE = 'America/Bogota'  # Cambiar de 'UTC' a 'America/Bogota'
 
@@ -160,11 +150,7 @@ REST_FRAMEWORK = {
     # AllowAny permite acceso sin autenticación por defecto.
     # Cada viewset puede sobrescribir esto con su propio get_permissions() o permission_classes
     'DEFAULT_PERMISSION_CLASSES': [
-<<<<<<< HEAD
         'rest_framework.permissions.AllowAny',
-=======
-        'rest_framework.permissions.IsAuthenticated',
->>>>>>> 7a5532a136307fccf049b016240b7c73a771ffe7
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
