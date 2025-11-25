@@ -14,12 +14,21 @@ import os
 from pathlib import Path
 import environ
 from datetime import timedelta
+<<<<<<< HEAD
 import dj_database_url
+=======
+import dj_database_url  
+from celery.schedules import crontab, schedule
+>>>>>>> 7a5532a136307fccf049b016240b7c73a771ffe7
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env()
+<<<<<<< HEAD
 PROJECT_ROOT = BASE_DIR.parent
+=======
+PROJECT_ROOT= BASE_DIR.parent
+>>>>>>> 7a5532a136307fccf049b016240b7c73a771ffe7
 environ.Env.read_env(os.path.join(PROJECT_ROOT, '.env'))
 
 SECRET_KEY = os.environ.get('SECRET_KEY') or env('SECRET_KEY', default='django-insecure-temporary-key-change-in-production')
@@ -27,10 +36,12 @@ DEBUG = env.bool('DEBUG', default=False) #convierte la cadena "True" o "False" d
 
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
+REDIS_URL = f"redis://:{env('REDIS_PASS')}@{env('REDIS_ENDPOINT')}"
 
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne', # Para soporte ASGI, debe ir primero
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -41,6 +52,9 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'channels',              
+    'django_celery_beat',
+    'pytz',
     # Apps locales
     'apps.usuarios',
     'apps.eventos',
@@ -76,7 +90,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'backend.wsgi.application'
-
+ASGI_APPLICATION = 'backend.asgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -111,13 +125,17 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
+<<<<<<< HEAD
 LANGUAGE_CODE = 'es-co'  # Cambiar a español de Colombia
+=======
+LANGUAGE_CODE = 'es-co'
+>>>>>>> 7a5532a136307fccf049b016240b7c73a771ffe7
 
 TIME_ZONE = 'America/Bogota'  # Cambiar de 'UTC' a 'America/Bogota'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_TZ = True  # Asegúrate de que esto esté en True
 
 
 # Archivos estáticos y multimedia
@@ -142,7 +160,11 @@ REST_FRAMEWORK = {
     # AllowAny permite acceso sin autenticación por defecto.
     # Cada viewset puede sobrescribir esto con su propio get_permissions() o permission_classes
     'DEFAULT_PERMISSION_CLASSES': [
+<<<<<<< HEAD
         'rest_framework.permissions.AllowAny',
+=======
+        'rest_framework.permissions.IsAuthenticated',
+>>>>>>> 7a5532a136307fccf049b016240b7c73a771ffe7
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -185,3 +207,61 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # Importante añadir en el frontend credentials: 'include' para que funcione
 CORS_ALLOW_CREDENTIALS = True
+
+# Configuración adicional para asegurar que las cookies funcionen
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Permitir que las cookies se envíen en las solicitudes
+CORS_EXPOSE_HEADERS = ['Set-Cookie']
+
+# --- CONFIGURACIÓN DE REAL-TIME & TAREAS ---
+
+# 1. Configuración de Celery
+CELERY_BROKER_URL = REDIS_URL # Lee la URL que pusimos en el .env
+CELERY_RESULT_BACKEND = REDIS_URL # Almacenar resultados de las tareas en Redis
+CELERY_ACCEPT_CONTENT = ['json'] # Aceptar contenido en formato JSON
+CELERY_TASK_SERIALIZER = 'json' # Serializar tareas en formato JSON
+CELERY_TIMEZONE = 'America/Bogota' # O tu zona horaria
+
+
+EMAIL_BACKEND = env('EMAIL_BACKEND',default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST= env('EMAIL_HOST',default='smtp.gmail.com')
+EMAIL_PORT=env.int('EMAIL_PORT',default=587)
+EMAIL_USE_TLS=env.bool('EMAIL_USE_TLS',default=True)
+EMAIL_HOST_USER=env('EMAIL_HOST_USER',default='eventifyuv@gmail.com')
+EMAIL_HOST_PASSWORD=env('EMAIL_HOST_PASSWORD',default='')
+DEFAULT_FROM_EMAIL=env('DEFAULT_FROM_EMAIL',default=EMAIL_HOST_USER)
+
+
+
+CELERY_BEAT_SCHEDULE = {
+    'notificar-eventos-proximos': {
+        'task': 'apps.notificaciones.tasks.notificar_eventos_proximos',
+        'schedule': schedule(run_every=timedelta(seconds=15)),  # Cada 15 segundos
+    },
+    'limpiar-notificaciones-eventos-finalizados': {
+        'task': 'apps.notificaciones.tasks.limpiar_notificaciones_eventos_finalizados',
+        'schedule': schedule(run_every=timedelta(hours=12)),  # Cada 12 horas (medio día)
+    },
+}
+
+CHANNEL_LAYERS = {
+
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [REDIS_URL],
+        }
+    
+    }
+}

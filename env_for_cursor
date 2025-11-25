@@ -5,3 +5,7 @@ DATABASE_URL=postgresql://neondb_owner:npg_Eq7TCZU3aulw@ep-mute-pond-ad34lrzi-po
 SECRET_KEY=django-insecure-&gr$4lj5srx4kz98-!#qgf6o8332t1sfd(tzah4yu2*-%&@f0r
 DEBUG=True
 ALLOWED_HOSTS=localhost,127.0.0.1
+
+# Archivo .env
+REDIS_ENDPOINT=redis-11622.c325.us-east-1-4.ec2.cloud.redislabs.com:11622
+REDIS_PASS=buL2cdbBjH0NHzuqwerEmNgSrNNES2QO

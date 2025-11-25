@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework_simplejwt.tokens import RefreshToken
+from datetime import timedelta
 
 
 class CookieTokenObtainPairView(TokenObtainPairView):
@@ -17,20 +18,29 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         access = data.get('access')
         refresh = data.get('refresh')
 
-        # Set cookies seguras (HttpOnly)
+        # Set cookies seguras (HttpOnly) con tiempo de expiración
+        # Access token: 20 minutos (1200 segundos)
+        # Refresh token: 1 día (86400 segundos)
+        # Nota: samesite='Lax' funciona en desarrollo local con CORS configurado
         response.set_cookie(
             key='access',
             value=access,
             httponly=True,
             secure=False,  # True en producción con HTTPS, False para desarrollo local
-            samesite='Lax',  # 'None' requiere secure=True, 'Lax' funciona en local
+            samesite='Lax',  # 'Lax' funciona en desarrollo local con CORS
+            max_age=1200,  # 20 minutos en segundos
+            path='/',  # Disponible en todas las rutas
+            domain=None,  # None permite que funcione en localhost sin especificar dominio
         )
         response.set_cookie(
             key='refresh',
             value=refresh,
             httponly=True,
             secure=False,  # True en producción con HTTPS, False para desarrollo local
-            samesite='Lax',
+            samesite='Lax',  # 'Lax' funciona en desarrollo local con CORS
+            max_age=86400,  # 1 día en segundos
+            path='/',  # Disponible en todas las rutas
+            domain=None,  # None permite que funcione en localhost sin especificar dominio
         )
 
         response.data = {"detail": "Login exitoso"}
@@ -54,7 +64,10 @@ class CookieTokenRefreshView(TokenRefreshView):
             value=new_access,
             httponly=True,
             secure=False,  # True en producción con HTTPS, False para desarrollo local
-            samesite='Lax',
+            samesite='Lax',  # 'Lax' funciona en desarrollo local con CORS
+            max_age=1200,  # 20 minutos en segundos
+            path='/',  # Disponible en todas las rutas
+            domain=None,  # None permite que funcione en localhost sin especificar dominio
         )
         response.data = {"detail": "Token refreshed"}
         return response
@@ -78,8 +91,8 @@ class LogoutView(APIView):
         response = Response({"detail": "Logout exitoso"}, status=status.HTTP_205_RESET_CONTENT)
 
         # Eliminar cookies con los mismos atributos que se usaron para crearlas
-        response.delete_cookie('access', samesite='Lax')
-        response.delete_cookie('refresh', samesite='Lax')
+        response.delete_cookie('access', samesite='Lax', path='/')
+        response.delete_cookie('refresh', samesite='Lax', path='/')
 
         # Blacklist opcional si usas token_blacklist
         refresh_token = request.COOKIES.get('refresh')
