@@ -5,11 +5,18 @@ export const registerRequest = (userData) => {
     return apiClient.post('/users-utils/usuarios/', userData);
 };
 
-// Función para el endpoint de login
-export const loginRequest = (username, password) => {
-    return apiClient.post('/users-utils/login/', {
-        username,
-        password
+// Función para el endpoint de login (puede requerir MFA)
+export const loginRequest = (username, password, mfaCode = null, sessionId = null) => {
+    const data = mfaCode && sessionId 
+        ? { mfa_code: mfaCode, session_id: sessionId }
+        : { username, password };
+    return apiClient.post('/users-utils/login/', data);
+};
+
+// Función para reenviar código MFA
+export const resendMFACodeRequest = (sessionId) => {
+    return apiClient.post('/users-utils/mfa/resend/', {
+        session_id: sessionId
     });
 };
 

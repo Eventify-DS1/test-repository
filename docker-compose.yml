@@ -29,14 +29,91 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - DEBUG=${DEBUG}
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - REDIS_ENDPOINT=${REDIS_ENDPOINT:-redis:6379}
+      - REDIS_PASS=${REDIS_PASS:-}
     command: python manage.py runserver 0.0.0.0:8000
     entrypoint: ["/app/entrypoint.sh"]
     ports:
       - "8000:8000"
+    # Redis Cloud se configura mediante variables de entorno del .env
+    # Ya no depende del servicio redis local
+    # depends_on:
+    #   - redis
     # Descomentar para base de datos local:
     # depends_on:
     #   postgres:
     #     condition: service_healthy
+
+  # Redis local - Comentado porque ahora usamos Redis Cloud
+  # Si necesitas usar Redis local, descomenta este servicio y actualiza REDIS_ENDPOINT en .env
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: eventify-redis
+  #   restart: unless-stopped
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   command: redis-server --appendonly yes
+  #   healthcheck:
+  #     test: ["CMD", "redis-cli", "ping"]
+  #     interval: 10s
+  #     timeout: 3s
+  #     retries: 5
+
+  celery:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - POSTGRES_DB=${POSTGRES_DB:-}
+      - POSTGRES_USER=${POSTGRES_USER:-}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=${DEBUG}
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - REDIS_ENDPOINT=${REDIS_ENDPOINT:-redis:6379}
+      - REDIS_PASS=${REDIS_PASS:-}
+      - EMAIL_HOST=${EMAIL_HOST:-smtp.gmail.com}
+      - EMAIL_PORT=${EMAIL_PORT:-587}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-True}
+      - EMAIL_HOST_USER=${EMAIL_HOST_USER:-}
+      - EMAIL_HOST_PASSWORD=${EMAIL_HOST_PASSWORD:-}
+      - DEFAULT_FROM_EMAIL=${DEFAULT_FROM_EMAIL:-}
+    command: celery -A backend worker -l INFO
+    entrypoint: ["/app/entrypoint.sh"]
+    depends_on:
+      - backend
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - POSTGRES_DB=${POSTGRES_DB:-}
+      - POSTGRES_USER=${POSTGRES_USER:-}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG=${DEBUG}
+      - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - REDIS_ENDPOINT=${REDIS_ENDPOINT:-redis:6379}
+      - REDIS_PASS=${REDIS_PASS:-}
+    command: celery -A backend beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    entrypoint: ["/app/entrypoint.sh"]
+    depends_on:
+      - backend
 
   postgres:
     image: postgres:15-alpine
@@ -79,3 +156,4 @@ services:
 volumes:
   postgres_data:
   pgadmin_data:
+  redis_data:

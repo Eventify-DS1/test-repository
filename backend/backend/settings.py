@@ -29,9 +29,29 @@ DEBUG = env.bool('DEBUG', default=False) #convierte la cadena "True" o "False" d
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
 # Configuración de Redis con valores por defecto
+# En Docker, usar 'redis:6379', en desarrollo local usar 'localhost:6379'
 REDIS_PASS = env('REDIS_PASS', default='')
-REDIS_ENDPOINT = env('REDIS_ENDPOINT', default='localhost:6379')
-REDIS_URL = f"redis://:{REDIS_PASS}@{REDIS_ENDPOINT}" if REDIS_PASS else f"redis://{REDIS_ENDPOINT}"
+REDIS_ENDPOINT = env('REDIS_ENDPOINT', default='redis:6379' if os.environ.get('DOCKER_CONTAINER') else 'localhost:6379')
+
+# Construir URL de Redis: solo incluir contraseña si está configurada y no está vacía
+# Verificar explícitamente que REDIS_PASS no sea None, vacío o solo espacios
+# También verificar que no sea la cadena literal 'None' o 'null'
+# Si REDIS_PASS está vacío o no está definido, usar URL sin autenticación
+# IMPORTANTE: Cuando REDIS_PASS viene de Docker Compose como cadena vacía,
+# puede estar presente como variable de entorno pero con valor vacío
+# Verificar explícitamente que tenga un valor real antes de usarlo
+redis_pass_raw = os.environ.get('REDIS_PASS', None)
+# Verificar que existe, no es None, no está vacío y no es solo espacios
+if redis_pass_raw is not None and str(redis_pass_raw).strip():
+    redis_pass_clean = str(redis_pass_raw).strip()
+    # Verificar que no sea un valor inválido
+    if redis_pass_clean.lower() not in ('none', 'null', ''):
+        REDIS_URL = f"redis://:{redis_pass_clean}@{REDIS_ENDPOINT}"
+    else:
+        REDIS_URL = f"redis://{REDIS_ENDPOINT}"
+else:
+    # Si REDIS_PASS no está definido o está vacío, usar URL sin autenticación
+    REDIS_URL = f"redis://{REDIS_ENDPOINT}"
 
 # Application definition
 
@@ -147,10 +167,10 @@ REST_FRAMEWORK = {
     ],
     # DEFAULT_PERMISSION_CLASSES: Permiso por defecto para todos los viewsets
     # Si un viewset no define permission_classes, usará este.
-    # AllowAny permite acceso sin autenticación por defecto.
+    # IsAuthenticated requiere autenticación por defecto (más seguro).
     # Cada viewset puede sobrescribir esto con su propio get_permissions() o permission_classes
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'django_filters.rest_framework.DjangoFilterBackend',
@@ -189,7 +209,13 @@ SIMPLE_JWT = {
     'TOKEN_OBTAIN_SERIALIZER': 'rest_framework_simplejwt.serializers.TokenObtainPairSerializer',
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+# Configuración CORS - Seguridad mejorada
+# En producción, usar CORS_ALLOWED_ORIGINS con orígenes específicos
+CORS_ALLOW_ALL_ORIGINS = env.bool('CORS_ALLOW_ALL_ORIGINS', default=DEBUG)  # Solo True en desarrollo
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
+    'http://localhost:8080',
+    'http://127.0.0.1:8080',
+])
 
 # Importante añadir en el frontend credentials: 'include' para que funcione
 CORS_ALLOW_CREDENTIALS = True

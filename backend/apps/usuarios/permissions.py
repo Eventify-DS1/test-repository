@@ -11,14 +11,16 @@ class IsAdmin(BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
         
+        # Los superusuarios de Django también son considerados admin
+        if request.user.is_superuser:
+            return True
+        
         # Verificar si el rol del usuario es 'admin'
         # Usamos .lower() por seguridad
         try:
             return request.user.rol.nombre.lower() == 'admin'
         except AttributeError:
-            # Maneja el caso de que el usuario no tenga rol (ej. superusuario de Django)
-            # Si el superusuario de Django debe ser admin, puedes añadir:
-            # return request.user.is_superuser or ...
+            # Maneja el caso de que el usuario no tenga rol
             return False
 
 class IsOwnerOrAdmin(BasePermission):
@@ -33,6 +35,10 @@ class IsOwnerOrAdmin(BasePermission):
         Esta función se llama para acciones de detalle (GET, PUT, DELETE /id/)
         'obj' es la instancia del modelo (en este caso, un 'Usuario').
         """
+        
+        # Los superusuarios de Django tienen permiso completo
+        if request.user.is_superuser:
+            return True
         
         # Si el usuario es admin, tiene permiso
         try:

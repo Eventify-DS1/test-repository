@@ -137,53 +137,107 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         """
         Sobrescribe create para personalizar la respuesta de registro.
+        Después del registro, el usuario debe completar MFA antes de poder usar la aplicación.
         """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         
-        # Creación de par tokens para el usuario recién creado
+        # Usuario recién creado
         user = serializer.instance
-        refresh = RefreshToken.for_user(user)
-        access = str(refresh.access_token)
         
-        headers = self.get_success_headers(serializer.data)
-        response_data = {
+        # Si MFA está habilitado, generar código MFA
+        if user.mfa_enabled:
+            from .models import MFACode
+            from .mfa_tasks import send_mfa_code_email
+            import secrets
+            
+            session_id = secrets.token_urlsafe(32)
+            mfa_code_obj = MFACode.generar_codigo(user, session_id)
+            
+            # Enviar código por email
+            email_sent = False
+            try:
+                send_mfa_code_email.delay(user.email, user.username, mfa_code_obj.codigo)
+                email_sent = True
+            except Exception:
+                # Fallback síncrono
+                from .mfa_tasks import _send_mfa_email_sync
+                try:
+                    email_sent = _send_mfa_email_sync(user.email, user.username, mfa_code_obj.codigo)
+                    if not email_sent:
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"No se pudo enviar código MFA a {user.email} después del registro")
+                except Exception as sync_error:
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Error enviando código MFA después del registro: {sync_error}")
+            
+            headers = self.get_success_headers(serializer.data)
+            from django.conf import settings
+            response_data = {
+                "message": "Usuario registrado correctamente. Se ha enviado un código de verificación a tu email." if email_sent else "Usuario registrado correctamente. No se pudo enviar el código por email. Verifica la configuración de email.",
+                "usuario": serializer.data,
+                "mfa_required": True,
+                "session_id": session_id,
+                "email_sent": email_sent
+            }
+            
+            # Solo en desarrollo, incluir el código en la respuesta para facilitar pruebas
+            if not email_sent and settings.DEBUG:
+                response_data["codigo"] = mfa_code_obj.codigo
+                response_data["warning"] = "Código mostrado solo en modo desarrollo. Configura el email para producción."
+            
+            return Response(
+                response_data,
+                status=status.HTTP_201_CREATED,
+                headers=headers
+            )
+        else:
+            # Si MFA no está habilitado, proceder con login normal (no debería pasar normalmente)
+            refresh = RefreshToken.for_user(user)
+            access = str(refresh.access_token)
+            
+            headers = self.get_success_headers(serializer.data)
+            response_data = {
                 "message": "Usuario registrado correctamente.",
                 "usuario": serializer.data
             }
-        
-        response = Response(
-            response_data,
-            status=status.HTTP_201_CREATED,
-            headers=headers
-        )
-        
-        # Se envían las cookies usando httpOnly y Secure con tiempo de expiración
-        # Access token: 20 minutos (1200 segundos)
-        # Refresh token: 1 día (86400 segundos)
-        # Nota: samesite='Lax' funciona en desarrollo local con CORS configurado
-        response.set_cookie(
-            key='access',
-            value=access,
-            httponly=True,
-            secure=False,  # True en producción con HTTPS, False para desarrollo local
-            samesite='Lax',  # 'Lax' funciona en desarrollo local con CORS
-            max_age=1200,  # 20 minutos en segundos
-            path='/',  # Disponible en todas las rutas
-            domain=None,  # None permite que funcione en localhost sin especificar dominio
-        )
-        
-        response.set_cookie(
-            key='refresh',
-            value=str(refresh),
-            httponly=True,
-            secure=False,  # True en producción con HTTPS, False para desarrollo local
-            samesite='Lax',  # 'Lax' funciona en desarrollo local con CORS
-            max_age=86400,  # 1 día en segundos
-            path='/',  # Disponible en todas las rutas
-            domain=None,  # None permite que funcione en localhost sin especificar dominio
-        )
-        
-        return response
+            
+            response = Response(
+                response_data,
+                status=status.HTTP_201_CREATED,
+                headers=headers
+            )
+            
+            # Se envían las cookies usando httpOnly y Secure con tiempo de expiración
+            from django.conf import settings
+            access_lifetime = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
+            refresh_lifetime = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
+            secure_flag = not settings.DEBUG
+            
+            response.set_cookie(
+                key='access',
+                value=access,
+                httponly=True,
+                secure=secure_flag,
+                samesite='Lax',
+                max_age=access_lifetime,
+                path='/',
+                domain=None,
+            )
+            
+            response.set_cookie(
+                key='refresh',
+                value=str(refresh),
+                httponly=True,
+                secure=secure_flag,
+                samesite='Lax',
+                max_age=refresh_lifetime,
+                path='/',
+                domain=None,
+            )
+            
+            return response
 

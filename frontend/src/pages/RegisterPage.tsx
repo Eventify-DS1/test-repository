@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { registerRequest, getRolesRequest } from '../api/auth.js';
+import { registerRequest, getRolesRequest, loginRequest, resendMFACodeRequest } from '../api/auth.js';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, UserPlus } from 'lucide-react';
+import { Loader2, UserPlus, Mail, ArrowLeft } from 'lucide-react';
 import Header from '@/components/layout/Header';
 
 function RegisterPage() {
@@ -27,6 +27,10 @@ function RegisterPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingRoles, setLoadingRoles] = useState(true);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaCode, setMfaCode] = useState('');
+  const [sessionId, setSessionId] = useState(null);
+  const [resendingCode, setResendingCode] = useState(false);
   const navigate = useNavigate();
 
   // Cargar roles al montar el componente
@@ -110,21 +114,52 @@ function RegisterPage() {
 
       const response = await registerRequest(dataToSend);
       console.log(response.data);
-      navigate('/dashboard');
+      
+      // Verificar si se requiere MFA después del registro
+      if (response.data.mfa_required && response.data.session_id) {
+        setSessionId(response.data.session_id);
+        setMfaRequired(true);
+        // Si el código viene en la respuesta (modo desarrollo), mostrarlo
+        if (response.data.codigo) {
+          setError(`⚠️ Modo desarrollo: Tu código MFA es ${response.data.codigo}`);
+        } else if (!response.data.email_sent) {
+          setError('⚠️ No se pudo enviar el código por email. Verifica la configuración de email.');
+        } else {
+          setError(null);
+        }
+      } else {
+        // Si no requiere MFA (no debería pasar normalmente), ir al dashboard
+        navigate('/dashboard');
+      }
     } catch (err) {
-      console.error(err.response?.data);
+      console.error('Error completo:', err);
+      console.error('Datos de respuesta:', err.response?.data);
       const errorData = err.response?.data;
       
-      if (errorData?.username) {
-        setError(`Usuario: ${Array.isArray(errorData.username) ? errorData.username[0] : errorData.username}`);
-      } else if (errorData?.email) {
-        setError(`Email: ${Array.isArray(errorData.email) ? errorData.email[0] : errorData.email}`);
-      } else if (errorData?.password) {
-        setError(`Contraseña: ${Array.isArray(errorData.password) ? errorData.password[0] : errorData.password}`);
-      } else if (errorData?.rol) {
-        setError(`Rol: ${Array.isArray(errorData.rol) ? errorData.rol[0] : errorData.rol}`);
-      } else if (errorData?.codigo_estudiantil) {
-        setError(`Código Estudiantil: ${Array.isArray(errorData.codigo_estudiantil) ? errorData.codigo_estudiantil[0] : errorData.codigo_estudiantil}`);
+      // Manejar errores de validación del serializer
+      if (errorData) {
+        // Buscar el primer error disponible
+        const errorFields = ['username', 'email', 'password', 'password2', 'rol', 'codigo_estudiantil', 'first_name', 'last_name', 'carrera', 'facultad'];
+        for (const field of errorFields) {
+          if (errorData[field]) {
+            const errorMsg = Array.isArray(errorData[field]) ? errorData[field][0] : errorData[field];
+            setError(`${field.charAt(0).toUpperCase() + field.slice(1)}: ${errorMsg}`);
+            return;
+          }
+        }
+        
+        // Si hay un mensaje de error general
+        if (errorData.detail || errorData.error || errorData.message) {
+          setError(errorData.detail || errorData.error || errorData.message);
+          return;
+        }
+        
+        // Si hay errores no específicos, mostrar el objeto completo en desarrollo
+        if (process.env.NODE_ENV === 'development') {
+          setError(`Error: ${JSON.stringify(errorData)}`);
+        } else {
+          setError('Error al registrar. Por favor, verifica todos los campos.');
+        }
       } else {
         setError('Error al registrar. Inténtalo de nuevo.');
       }
@@ -132,6 +167,172 @@ function RegisterPage() {
       setLoading(false);
     }
   };
+
+  const handleMFASubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      // Usar el endpoint de login con el código MFA
+      const response = await loginRequest(null, null, mfaCode, sessionId);
+      
+      // Si el login es exitoso, navegar al dashboard
+      navigate('/dashboard');
+    } catch (err) {
+      console.error(err);
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+        // Si el error es por código MFA incorrecto, limpiar el código para nuevo intento
+        if (err.response.data.error.includes('código')) {
+          setMfaCode('');
+        } else if (err.response.data.error.includes('Demasiados intentos')) {
+          // Si hay demasiados intentos, volver al formulario de registro
+          setMfaRequired(false);
+          setSessionId(null);
+          setMfaCode('');
+        }
+      } else {
+        setError('Código de verificación incorrecto. Intenta nuevamente.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!sessionId) return;
+    
+    setResendingCode(true);
+    setError(null);
+    
+    try {
+      const response = await resendMFACodeRequest(sessionId);
+      // Si el código viene en la respuesta (modo desarrollo), mostrarlo
+      if (response.data.codigo) {
+        setError(`⚠️ Modo desarrollo: Tu código MFA es ${response.data.codigo}`);
+      } else if (!response.data.email_sent) {
+        setError('⚠️ No se pudo enviar el código por email. Verifica la configuración de email.');
+      } else {
+        setError(null);
+        alert('Código reenviado. Revisa tu email.');
+      }
+    } catch (err) {
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else {
+        setError('Error al reenviar el código. Intenta nuevamente.');
+      }
+    } finally {
+      setResendingCode(false);
+    }
+  };
+
+  const handleBackToRegister = () => {
+    setMfaRequired(false);
+    setSessionId(null);
+    setMfaCode('');
+    setError(null);
+  };
+
+  // Si se requiere MFA, mostrar formulario de código MFA
+  if (mfaRequired) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        
+        <div className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-muted/50 via-background to-primary/5">
+          <Card className="w-full max-w-md shadow-2xl border-primary/20">
+            <CardHeader className="space-y-1 text-center">
+              <div className="flex justify-center mb-4">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl gradient-primary">
+                  <Mail className="h-8 w-8 text-white" />
+                </div>
+              </div>
+              <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
+                Verificación requerida
+              </CardTitle>
+              <CardDescription className="text-base">
+                Hemos enviado un código de verificación a tu email. Ingresa el código para completar tu registro.
+              </CardDescription>
+            </CardHeader>
+            
+            <CardContent>
+              <form onSubmit={handleMFASubmit} className="space-y-4">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="mfaCode" className="text-base font-medium">
+                    Código de verificación
+                  </Label>
+                  <Input
+                    id="mfaCode"
+                    type="text"
+                    placeholder="000000"
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    required
+                    disabled={loading}
+                    className="h-12 text-base text-center text-2xl tracking-widest"
+                    maxLength={6}
+                  />
+                </div>
+                
+                <Button
+                  type="submit"
+                  className="w-full h-12 text-base gradient-primary text-white border-0 hover:opacity-90 transition-all"
+                  disabled={loading || mfaCode.length !== 6}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Verificando...
+                    </>
+                  ) : (
+                    'Verificar código'
+                  )}
+                </Button>
+                
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleResendCode}
+                    disabled={resendingCode || loading}
+                    className="w-full"
+                  >
+                    {resendingCode ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Reenviando...
+                      </>
+                    ) : (
+                      'Reenviar código'
+                    )}
+                  </Button>
+                  
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleBackToRegister}
+                    disabled={loading}
+                    className="w-full"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver al registro
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col">

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import Usuario, Rol
+from .models import Usuario, Rol, MFACode
 
 @admin.register(Rol)
 class RolAdmin(admin.ModelAdmin):
@@ -19,6 +19,9 @@ class UsuarioAdmin(UserAdmin):
         ('Información adicional', {
             'fields': ('carrera', 'facultad', 'foto', 'codigo_estudiantil', 'rol')
         }),
+        ('Seguridad', {
+            'fields': ('mfa_enabled', 'mfa_secret')
+        }),
     )
     
     # Campos para crear nuevo usuario
@@ -27,3 +30,13 @@ class UsuarioAdmin(UserAdmin):
             'fields': ('email', 'carrera', 'facultad', 'codigo_estudiantil', 'rol')
         }),
     )
+
+@admin.register(MFACode)
+class MFACodeAdmin(admin.ModelAdmin):
+    list_display = ['usuario', 'codigo', 'session_id', 'creado_en', 'usado', 'intentos']
+    list_filter = ['usado', 'creado_en']
+    search_fields = ['usuario__username', 'usuario__email', 'session_id', 'codigo']
+    readonly_fields = ['codigo', 'session_id', 'creado_en']
+    
+    def has_add_permission(self, request):
+        return False  # Los códigos solo se generan automáticamente

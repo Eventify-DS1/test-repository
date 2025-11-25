@@ -5,45 +5,201 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+from django.conf import settings
+from django.contrib.auth import authenticate
+from django.utils import timezone
 from datetime import timedelta
+import secrets
+from .models import Usuario, MFACode
+from .mfa_tasks import send_mfa_code_email
 
 
 class CookieTokenObtainPairView(TokenObtainPairView):
-    """Login con JWT almacenado en cookies seguras."""
+    """
+    Login con JWT almacenado en cookies seguras.
+    Implementa MFA (Multi-Factor Authentication) si está habilitado.
+    """
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        response = super().post(request, *args, **kwargs)
-        data = response.data
-        access = data.get('access')
-        refresh = data.get('refresh')
-
-        # Set cookies seguras (HttpOnly) con tiempo de expiración
-        # Access token: 20 minutos (1200 segundos)
-        # Refresh token: 1 día (86400 segundos)
-        # Nota: samesite='Lax' funciona en desarrollo local con CORS configurado
+        # Verificar si se está enviando un código MFA
+        mfa_code = request.data.get('mfa_code')
+        session_id = request.data.get('session_id')
+        
+        # Si hay código MFA, verificar y completar login
+        if mfa_code and session_id:
+            return self._verify_mfa_and_login(request, mfa_code, session_id)
+        
+        # Si no hay código MFA, validar credenciales y generar código MFA
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception as e:
+            return Response(
+                {"error": "Credenciales inválidas"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Obtener usuario
+        username = request.data.get('username')
+        password = request.data.get('password')
+        user = authenticate(username=username, password=password)
+        
+        if not user:
+            return Response(
+                {"error": "Credenciales inválidas"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+        
+        # Verificar si MFA está habilitado para el usuario
+        if not user.mfa_enabled:
+            # Si MFA no está habilitado, proceder con login normal
+            return self._complete_login(user)
+        
+        # Verificar si necesita MFA basado en el tiempo transcurrido
+        # MFA es requerido si:
+        # 1. Es un nuevo registro (last_mfa_verification es None)
+        # 2. Ha pasado más tiempo que el refresh token lifetime (1 día) desde la última verificación
+        refresh_token_lifetime = settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME']
+        necesita_mfa = False
+        
+        if user.last_mfa_verification is None:
+            # Usuario nuevo o nunca ha hecho MFA
+            necesita_mfa = True
+        else:
+            # Verificar si ha pasado más tiempo que el refresh token lifetime
+            tiempo_desde_mfa = timezone.now() - user.last_mfa_verification
+            if tiempo_desde_mfa > refresh_token_lifetime:
+                necesita_mfa = True
+        
+        # Si no necesita MFA, proceder con login normal
+        if not necesita_mfa:
+            return self._complete_login(user)
+        
+        # Generar código MFA
+        session_id = secrets.token_urlsafe(32)
+        mfa_code_obj = MFACode.generar_codigo(user, session_id)
+        
+        # Enviar código por email de forma asíncrona (con fallback síncrono)
+        email_sent = False
+        try:
+            send_mfa_code_email.delay(user.email, user.username, mfa_code_obj.codigo)
+            email_sent = True
+        except Exception as e:
+            # Fallback: enviar síncronamente si Celery no está disponible
+            from .mfa_tasks import _send_mfa_email_sync
+            try:
+                email_sent = _send_mfa_email_sync(user.email, user.username, mfa_code_obj.codigo)
+                if not email_sent:
+                    # Si no se pudo enviar, registrar error pero continuar
+                    # El código sigue siendo válido y el usuario puede solicitarlo de nuevo
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"No se pudo enviar código MFA a {user.email}")
+            except Exception as sync_error:
+                # Si también falla el envío síncrono, registrar error pero continuar
+                # El código sigue siendo válido y el usuario puede solicitarlo de nuevo
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Error enviando código MFA: {sync_error}")
+        
+        response_data = {
+            "detail": "Código de verificación enviado a tu email" if email_sent else "No se pudo enviar el código por email. Verifica la configuración de email.",
+            "session_id": session_id,
+            "mfa_required": True,
+            "email_sent": email_sent
+        }
+        
+        # Solo en desarrollo, incluir el código en la respuesta para facilitar pruebas
+        if not email_sent and settings.DEBUG:
+            response_data["codigo"] = mfa_code_obj.codigo
+            response_data["warning"] = "Código mostrado solo en modo desarrollo. Configura el email para producción."
+        
+        return Response(response_data, status=status.HTTP_200_OK)
+    
+    def _verify_mfa_and_login(self, request, mfa_code, session_id):
+        """Verifica el código MFA y completa el login"""
+        try:
+            mfa_code_obj = MFACode.objects.get(session_id=session_id, usado=False)
+        except MFACode.DoesNotExist:
+            return Response(
+                {"error": "Sesión inválida o código ya usado"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar si el código es válido
+        if not mfa_code_obj.es_valido():
+            mfa_code_obj.incrementar_intentos()
+            return Response(
+                {"error": "Código expirado o inválido"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar el código
+        if mfa_code_obj.codigo != mfa_code:
+            mfa_code_obj.incrementar_intentos()
+            
+            # Bloquear después de 5 intentos fallidos
+            if mfa_code_obj.intentos >= 5:
+                mfa_code_obj.marcar_como_usado()
+                return Response(
+                    {"error": "Demasiados intentos fallidos. Por favor, inicia sesión nuevamente."},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS
+                )
+            
+            return Response(
+                {"error": "Código de verificación incorrecto"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Código correcto, marcar como usado y actualizar última verificación MFA
+        mfa_code_obj.marcar_como_usado()
+        user = mfa_code_obj.usuario
+        
+        # Actualizar la última vez que el usuario completó MFA exitosamente
+        user.last_mfa_verification = timezone.now()
+        user.save(update_fields=['last_mfa_verification'])
+        
+        return self._complete_login(user)
+    
+    def _complete_login(self, user):
+        """Completa el proceso de login estableciendo las cookies"""
+        # Generar tokens
+        refresh = RefreshToken.for_user(user)
+        access = str(refresh.access_token)
+        
+        # Configuración de cookies
+        access_lifetime = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
+        refresh_lifetime = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
+        secure_flag = not settings.DEBUG
+        
+        response = Response(
+            {"detail": "Login exitoso"},
+            status=status.HTTP_200_OK
+        )
+        
         response.set_cookie(
             key='access',
             value=access,
             httponly=True,
-            secure=False,  # True en producción con HTTPS, False para desarrollo local
-            samesite='Lax',  # 'Lax' funciona en desarrollo local con CORS
-            max_age=1200,  # 20 minutos en segundos
-            path='/',  # Disponible en todas las rutas
-            domain=None,  # None permite que funcione en localhost sin especificar dominio
+            secure=secure_flag,
+            samesite='Lax',
+            max_age=access_lifetime,
+            path='/',
+            domain=None,
         )
         response.set_cookie(
             key='refresh',
-            value=refresh,
+            value=str(refresh),
             httponly=True,
-            secure=False,  # True en producción con HTTPS, False para desarrollo local
-            samesite='Lax',  # 'Lax' funciona en desarrollo local con CORS
-            max_age=86400,  # 1 día en segundos
-            path='/',  # Disponible en todas las rutas
-            domain=None,  # None permite que funcione en localhost sin especificar dominio
+            secure=secure_flag,
+            samesite='Lax',
+            max_age=refresh_lifetime,
+            path='/',
+            domain=None,
         )
-
-        response.data = {"detail": "Login exitoso"}
+        
         return response
 
 class CookieTokenRefreshView(TokenRefreshView):
@@ -55,20 +211,48 @@ class CookieTokenRefreshView(TokenRefreshView):
         if not refresh_token:
             return Response({"error": "No refresh token found"}, status=status.HTTP_401_UNAUTHORIZED)
 
+        # Validar que el token no esté en blacklist
+        try:
+            token = RefreshToken(refresh_token)
+            token.check_blacklist()
+        except (TokenError, InvalidToken):
+            return Response({"error": "Invalid or blacklisted refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
+
         request.data['refresh'] = refresh_token
         response = super().post(request, *args, **kwargs)
         new_access = response.data.get('access')
+        new_refresh = response.data.get('refresh')  # Puede existir si ROTATE_REFRESH_TOKENS = True
 
+        # Configuración de cookies
+        access_lifetime = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
+        refresh_lifetime = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
+        secure_flag = not settings.DEBUG
+
+        # Actualizar access token
         response.set_cookie(
             key='access',
             value=new_access,
             httponly=True,
-            secure=False,  # True en producción con HTTPS, False para desarrollo local
-            samesite='Lax',  # 'Lax' funciona en desarrollo local con CORS
-            max_age=1200,  # 20 minutos en segundos
-            path='/',  # Disponible en todas las rutas
-            domain=None,  # None permite que funcione en localhost sin especificar dominio
+            secure=secure_flag,
+            samesite='Lax',
+            max_age=access_lifetime,
+            path='/',
+            domain=None,
         )
+
+        # Si se rotó el refresh token, actualizar la cookie también
+        if new_refresh:
+            response.set_cookie(
+                key='refresh',
+                value=new_refresh,
+                httponly=True,
+                secure=secure_flag,
+                samesite='Lax',
+                max_age=refresh_lifetime,
+                path='/',
+                domain=None,
+            )
+
         response.data = {"detail": "Token refreshed"}
         return response
 
@@ -91,6 +275,8 @@ class LogoutView(APIView):
         response = Response({"detail": "Logout exitoso"}, status=status.HTTP_205_RESET_CONTENT)
 
         # Eliminar cookies con los mismos atributos que se usaron para crearlas
+        # Nota: delete_cookie() no acepta 'secure', pero Django maneja la eliminación
+        # correctamente si usamos los mismos path y domain
         response.delete_cookie('access', samesite='Lax', path='/')
         response.delete_cookie('refresh', samesite='Lax', path='/')
 
@@ -104,3 +290,109 @@ class LogoutView(APIView):
                 pass
 
         return response
+
+
+class MFAResendCodeView(APIView):
+    """Reenvía el código MFA si el usuario no lo recibió."""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        session_id = request.data.get('session_id')
+        
+        if not session_id:
+            return Response(
+                {"error": "session_id es requerido"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            mfa_code_obj = MFACode.objects.get(session_id=session_id, usado=False)
+        except MFACode.DoesNotExist:
+            return Response(
+                {"error": "Sesión inválida"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar si el código anterior aún es válido
+        if mfa_code_obj.es_valido():
+            # Reenviar el mismo código
+            email_sent = False
+            try:
+                send_mfa_code_email.delay(
+                    mfa_code_obj.usuario.email,
+                    mfa_code_obj.usuario.username,
+                    mfa_code_obj.codigo
+                )
+                email_sent = True
+            except Exception:
+                # Fallback síncrono
+                from .mfa_tasks import _send_mfa_email_sync
+                try:
+                    email_sent = _send_mfa_email_sync(
+                        mfa_code_obj.usuario.email,
+                        mfa_code_obj.usuario.username,
+                        mfa_code_obj.codigo
+                    )
+                except Exception as e:
+                    # Registrar error pero continuar
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Error al enviar código MFA: {str(e)}")
+                    email_sent = False
+            
+            # Si el email no se pudo enviar, devolver advertencia pero permitir continuar
+            # En desarrollo, incluir el código en la respuesta para facilitar pruebas
+            response_data = {
+                "detail": "Código de verificación reenviado" if email_sent else "No se pudo enviar el código por email. Verifica la configuración de email.",
+                "email_sent": email_sent
+            }
+            
+            # Solo en desarrollo, incluir el código en la respuesta
+            if not email_sent and settings.DEBUG:
+                response_data["codigo"] = mfa_code_obj.codigo
+                response_data["warning"] = "Código mostrado solo en modo desarrollo. Configura el email para producción."
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+        else:
+            # Generar nuevo código
+            user = mfa_code_obj.usuario
+            mfa_code_obj.marcar_como_usado()  # Invalidar el anterior
+            new_mfa_code = MFACode.generar_codigo(user, session_id)
+            
+            email_sent = False
+            try:
+                send_mfa_code_email.delay(
+                    user.email,
+                    user.username,
+                    new_mfa_code.codigo
+                )
+                email_sent = True
+            except Exception:
+                # Fallback síncrono
+                from .mfa_tasks import _send_mfa_email_sync
+                try:
+                    email_sent = _send_mfa_email_sync(
+                        user.email,
+                        user.username,
+                        new_mfa_code.codigo
+                    )
+                except Exception as e:
+                    # Registrar error pero continuar
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.error(f"Error al enviar código MFA: {str(e)}")
+                    email_sent = False
+            
+            # Si el email no se pudo enviar, devolver advertencia pero permitir continuar
+            # En desarrollo, incluir el código en la respuesta para facilitar pruebas
+            response_data = {
+                "detail": "Código de verificación reenviado" if email_sent else "No se pudo enviar el código por email. Verifica la configuración de email.",
+                "email_sent": email_sent
+            }
+            
+            # Solo en desarrollo, incluir el código en la respuesta
+            if not email_sent and settings.DEBUG:
+                response_data["codigo"] = new_mfa_code.codigo
+                response_data["warning"] = "Código mostrado solo en modo desarrollo. Configura el email para producción."
+            
+            return Response(response_data, status=status.HTTP_200_OK)

@@ -5,7 +5,8 @@ from .views import UsuarioViewSet, RolViewSet
 from .auth_views import (CookieTokenObtainPairView, 
                          CookieTokenRefreshView, 
                          CookieTokenVerifyView, 
-                         LogoutView
+                         LogoutView,
+                         MFAResendCodeView
                          )
 
 # Creamos el router
@@ -22,4 +23,5 @@ urlpatterns = [
     path('refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
     path('verify/', CookieTokenVerifyView.as_view(), name='token_verify'),
     path('logout/', LogoutView.as_view(), name='logout'),
+    path('mfa/resend/', MFAResendCodeView.as_view(), name='mfa_resend'),
 ]

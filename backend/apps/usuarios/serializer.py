@@ -30,6 +30,10 @@ class UsuarioSerializer(serializers.ModelSerializer):
         """
         Valida que el email sea único, excluyendo al usuario actual en actualizaciones.
         """
+        # Normalizar: convertir None a cadena vacía y luego verificar
+        if value is None:
+            value = ''
+        
         # En creación, el email es requerido
         if not self.instance and not value:
             raise serializers.ValidationError("El correo electrónico es obligatorio.")
@@ -43,15 +47,28 @@ class UsuarioSerializer(serializers.ModelSerializer):
         if user and user.email == value:
             return value  # Si es el mismo email, no hay problema
         
-        if Usuario.objects.filter(email=value).exists():
+        # Validar unicidad solo si hay un valor
+        if value and Usuario.objects.filter(email=value).exclude(pk=user.pk if user else None).exists():
             raise serializers.ValidationError("Este correo electrónico ya está en uso.")
         return value
 
     # Campo para asignar el rol mediante su ID (solo escritura)
     rol = serializers.PrimaryKeyRelatedField(
         queryset=Rol.objects.all(),
-        write_only=True
+        write_only=True,
+        required=True,
+        allow_null=False
     )
+    
+    def validate_rol(self, value):
+        """
+        Valida que el rol exista y sea válido.
+        """
+        if value is None:
+            raise serializers.ValidationError("El rol es obligatorio.")
+        if not Rol.objects.filter(pk=value.pk).exists():
+            raise serializers.ValidationError("El rol especificado no existe.")
+        return value
 
     # Campos de contraseña: protegidos (write_only) y validados
     password = serializers.CharField(
