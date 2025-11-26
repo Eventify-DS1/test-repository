@@ -103,14 +103,53 @@ class EventoSerializer(serializers.ModelSerializer):
             'codigo_confirmacion',  # Código de confirmación (solo para organizador)
         ]
     
+    def to_representation(self, instance):
+        """
+        Sobrescribe la representación para devolver solo la ruta relativa de la foto
+        en lugar de la URL absoluta (que puede contener backend:8000).
+        """
+        try:
+            representation = super().to_representation(instance)
+            foto_url = representation.get('foto')
+            if foto_url:
+                # Si es una URL absoluta, extraer solo la ruta relativa
+                if isinstance(foto_url, str) and (foto_url.startswith('http://') or foto_url.startswith('https://')):
+                    from urllib.parse import urlparse
+                    parsed = urlparse(foto_url)
+                    representation['foto'] = parsed.path
+                # Asegurar que comience con / si es una cadena y no está vacía
+                elif isinstance(foto_url, str) and foto_url and not foto_url.startswith('/'):
+                    representation['foto'] = f'/{foto_url}'
+            return representation
+        except Exception as e:
+            # Si hay un error en to_representation, intentar devolver la representación básica
+            # Esto puede pasar si el objeto aún no está completamente guardado
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Error en to_representation para evento {instance.pk if hasattr(instance, 'pk') else 'nuevo'}: {str(e)}")
+            # Devolver representación básica sin procesar la foto
+            return super().to_representation(instance)
+    
     def get_numero_inscritos(self, obj):
         """Retorna el número de inscritos en el evento"""
-        return obj.inscripciones.count()
+        # Verificar que el objeto esté guardado antes de acceder a relaciones
+        if not obj.pk:
+            return 0
+        try:
+            return obj.inscripciones.count()
+        except Exception:
+            return 0
     
     def get_inscritos(self, obj):
         """Retorna la lista de usuarios inscritos con sus nombres"""
-        inscripciones = obj.inscripciones.select_related('usuario').all()
-        return UsuarioInscritoSerializer([inscripcion.usuario for inscripcion in inscripciones], many=True).data
+        # Verificar que el objeto esté guardado antes de acceder a relaciones
+        if not obj.pk:
+            return []
+        try:
+            inscripciones = obj.inscripciones.select_related('usuario').all()
+            return UsuarioInscritoSerializer([inscripcion.usuario for inscripcion in inscripciones], many=True).data
+        except Exception:
+            return []
     
     def get_codigo_confirmacion(self, obj):
         """Retorna el código de confirmación solo si el usuario es el organizador"""

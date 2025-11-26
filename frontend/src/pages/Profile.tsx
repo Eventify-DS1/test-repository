@@ -130,10 +130,17 @@ const Profile = () => {
     }
   };
 
-  const getImageUrl = (foto: string | null) => {
+  // Usar la función helper centralizada para obtener URLs de imágenes
+  const getImageUrlForProfile = (foto: string | null) => {
     if (!foto) return undefined;
     if (foto.startsWith('http')) return foto;
-    return `http://localhost:8000${foto}`;
+    // En desarrollo, usar ruta relativa (el proxy de Vite maneja /media)
+    if (import.meta.env.DEV) {
+      return foto.startsWith('/') ? foto : `/${foto}`;
+    }
+    // En producción, usar la URL completa
+    const baseURL = import.meta.env.VITE_API_URL || window.location.origin;
+    return `${baseURL}${foto.startsWith('/') ? foto : `/${foto}`}`;
   };
 
   const getInitials = () => {
@@ -187,7 +194,7 @@ const Profile = () => {
             </CardHeader>
             <CardContent className="flex items-center gap-6">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={usuario?.foto ? getImageUrl(usuario.foto) : undefined} alt="Profile" />
+                <AvatarImage src={usuario?.foto ? getImageUrlForProfile(usuario.foto) : undefined} alt="Profile" />
                 <AvatarFallback className="text-2xl gradient-primary text-white">
                   {getInitials()}
                 </AvatarFallback>

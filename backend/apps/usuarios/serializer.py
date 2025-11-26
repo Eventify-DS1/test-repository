@@ -131,6 +131,24 @@ class UsuarioSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"password": "Las contraseñas no coinciden."})
         
         return attrs
+    
+    def to_representation(self, instance):
+        """
+        Sobrescribe la representación para devolver solo la ruta relativa de la foto
+        en lugar de la URL absoluta (que puede contener backend:8000).
+        """
+        representation = super().to_representation(instance)
+        foto_url = representation.get('foto')
+        if foto_url:
+            # Si es una URL absoluta, extraer solo la ruta relativa
+            if isinstance(foto_url, str) and (foto_url.startswith('http://') or foto_url.startswith('https://')):
+                from urllib.parse import urlparse
+                parsed = urlparse(foto_url)
+                representation['foto'] = parsed.path
+            # Asegurar que comience con / si es una cadena y no está vacía
+            elif isinstance(foto_url, str) and foto_url and not foto_url.startswith('/'):
+                representation['foto'] = f'/{foto_url}'
+        return representation
 
     # === Creación personalizada ===
     def create(self, validated_data):

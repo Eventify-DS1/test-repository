@@ -11,8 +11,16 @@ export const getImageUrl = (imagePath: string | null | undefined): string | unde
     return imagePath;
   }
   
-  // Construir la URL completa con la base del backend
-  const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  // En desarrollo, usar ruta relativa (el proxy de Vite maneja /media)
+  // En producción, construir la URL completa
+  if (import.meta.env.DEV) {
+    // Asegurarse de que la ruta comience con /
+    const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;
+    return path; // Ruta relativa, el proxy de Vite la manejará
+  }
+  
+  // En producción, usar la URL completa del backend
+  const baseURL = import.meta.env.VITE_API_URL || window.location.origin;
   
   // Asegurarse de que la ruta comience con /
   const path = imagePath.startsWith('/') ? imagePath : `/${imagePath}`;

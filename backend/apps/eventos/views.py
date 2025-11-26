@@ -96,22 +96,38 @@ class EventoViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):  
         #Asigna automáticamente el organizador (usuario autenticado)
         #antes de guardar el evento.
-        event = serializer.save(organizador=self.request.user)
-        send_email_task.delay(event.id, f"Evento {event.titulo} creado correctamente", self.request.user.email)
+        # El serializer ya asigna el organizador en su método create(),
+        # pero lo hacemos explícito aquí por si acaso
+        event = serializer.save()
+        # Enviar email de confirmación de forma asíncrona
+        try:
+            send_email_task.delay(event.id, f"Evento {event.titulo} creado correctamente", self.request.user.email)
+        except Exception as e:
+            # Si falla el envío del email, no debe impedir la creación del evento
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error al enviar email de confirmación: {str(e)}")
 
 
     def create(self, request, *args, **kwargs):
-        
-       # Personaliza la respuesta tras crear un evento.
-        
+        """
+        Personaliza la respuesta tras crear un evento.
+        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
+        
+        # Obtener el objeto creado para serializarlo de nuevo con todos los campos
+        instance = serializer.instance
+        
+        # Serializar el objeto completo después de guardarlo
+        response_serializer = self.get_serializer(instance)
+        headers = self.get_success_headers(response_serializer.data)
+        
         return Response(
             {
                 "message": "Evento creado correctamente.",
-                "evento": serializer.data
+                "evento": response_serializer.data
             },
             status=status.HTTP_201_CREATED,
             headers=headers

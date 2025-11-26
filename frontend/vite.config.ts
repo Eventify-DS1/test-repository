@@ -10,7 +10,22 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // En Docker, usar el nombre del servicio 'backend'
+        // En desarrollo local, usar 'localhost'
+        target: process.env.VITE_API_TARGET || 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/ws': {
+        // Proxy para WebSocket
+        target: process.env.VITE_API_TARGET || 'http://localhost:8000',
+        ws: true,
+        changeOrigin: true,
+        secure: false,
+      },
+      '/media': {
+        // Proxy para archivos multimedia (imágenes, etc.)
+        target: process.env.VITE_API_TARGET || 'http://localhost:8000',
         changeOrigin: true,
         secure: false,
       }

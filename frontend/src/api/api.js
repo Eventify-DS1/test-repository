@@ -64,15 +64,22 @@ apiClient.interceptors.response.use(
       originalRequest.url?.includes(url)
     );
 
+    // Verificar si hay un token de refresh en las cookies antes de intentar refrescar
+    const hasRefreshToken = document.cookie
+      .split('; ')
+      .some(row => row.startsWith('refresh='));
+
     // Si el error es 401 y no es una petición de refresh/login/logout/register
-    if (error.response?.status === 401 && !originalRequest._retry && !shouldSkipRefresh) {
+    // Y hay un token de refresh disponible
+    if (error.response?.status === 401 && !originalRequest._retry && !shouldSkipRefresh && hasRefreshToken) {
       if (isRefreshing) {
         // Si ya se está refrescando, encolar la petición
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
-          .then(token => {
-            originalRequest.headers['Authorization'] = `Bearer ${token}`;
+          .then(() => {
+            // No agregar headers de Authorization, el backend usa cookies
+            // Las cookies se manejan automáticamente con withCredentials: true
             return apiClient(originalRequest);
           })
           .catch(err => {
@@ -84,14 +91,14 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Intentar refrescar el token
+        // Intentar refrescar el token (las cookies se actualizan automáticamente)
         await refreshTokenRequest();
         processQueue(null);
-        // Reintentar la petición original
+        // Reintentar la petición original (las cookies ya están actualizadas)
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // Si el refresh falla, redirigir al login
+        // Si el refresh falla, redirigir al login solo si no estamos ya en login
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
@@ -101,6 +108,8 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // Si es un 401 pero no hay token de refresh, simplemente rechazar el error
+    // Esto permite que las peticiones públicas funcionen correctamente
     return Promise.reject(error);
   }
 );

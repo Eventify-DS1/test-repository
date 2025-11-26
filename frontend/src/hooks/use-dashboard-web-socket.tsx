@@ -32,7 +32,29 @@ export const useDashboardWebSocket = () => {
             }
         
             // 3. Obtener la URL del WebSocket (con valor por defecto)
-            const wsUrl = import.meta.env.VITE_WS_URL ;
+            // En desarrollo, usar el proxy de Vite (ws://localhost:8080/ws/notifications/)
+            // En producción, usar la variable de entorno o construir desde la API URL
+            const getWebSocketUrl = () => {
+                // Si hay una variable de entorno definida, usarla
+                if (import.meta.env.VITE_WS_URL) {
+                    return import.meta.env.VITE_WS_URL;
+                }
+                
+                // Si estamos en desarrollo, usar el proxy de Vite
+                if (import.meta.env.DEV) {
+                    // El protocolo será ws o wss dependiendo de si estamos en HTTPS
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    return `${protocol}//${window.location.host}/ws/notifications/`;
+                }
+                
+                // En producción, construir desde la API URL
+                const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
+                const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:';
+                const wsHost = apiUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+                return `${wsProtocol}//${wsHost}/ws/notifications/`;
+            };
+            
+            const wsUrl = getWebSocketUrl();
             
             // 4. Crear la conexión WebSocket
             const ws = new WebSocket(wsUrl);
