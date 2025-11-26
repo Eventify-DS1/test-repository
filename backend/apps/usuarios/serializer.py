@@ -3,6 +3,7 @@ from rest_framework.validators import UniqueValidator
 from django.contrib.auth.password_validation import validate_password
 from .models import Usuario, Rol
 from django.utils import timezone
+from backend.security_utils import sanitize_text
 
 class RolSerializer(serializers.ModelSerializer):
     """
@@ -29,10 +30,15 @@ class UsuarioSerializer(serializers.ModelSerializer):
     def validate_email(self, value):
         """
         Valida que el email sea único, excluyendo al usuario actual en actualizaciones.
+        También sanitiza el email para prevenir XSS.
         """
         # Normalizar: convertir None a cadena vacía y luego verificar
         if value is None:
             value = ''
+        
+        # Sanitizar el email para prevenir XSS
+        if value:
+            value = sanitize_text(value, max_length=254)  # Max length de EmailField
         
         # En creación, el email es requerido
         if not self.instance and not value:
@@ -119,7 +125,14 @@ class UsuarioSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         """
         Verifica que las contraseñas coincidan antes de crear o actualizar el usuario.
+        También sanitiza campos de texto para prevenir XSS.
         """
+        # Sanitizar campos de texto
+        text_fields = ['username', 'first_name', 'last_name', 'carrera', 'facultad', 'codigo_estudiantil']
+        for field in text_fields:
+            if field in attrs and attrs[field]:
+                attrs[field] = sanitize_text(attrs[field])
+        
         # Si se proporciona password, también debe proporcionarse password2
         password = attrs.get('password')
         password2 = attrs.get('password2')

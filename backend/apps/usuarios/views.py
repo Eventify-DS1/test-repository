@@ -216,13 +216,14 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             access_lifetime = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
             refresh_lifetime = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
             secure_flag = not settings.DEBUG
+            samesite_flag = 'Strict' if not settings.DEBUG else 'Lax'  # Strict en producción, Lax en desarrollo
             
             response.set_cookie(
                 key='access',
                 value=access,
                 httponly=True,
                 secure=secure_flag,
-                samesite='Lax',
+                samesite=samesite_flag,
                 max_age=access_lifetime,
                 path='/',
                 domain=None,
@@ -233,7 +234,7 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                 value=str(refresh),
                 httponly=True,
                 secure=secure_flag,
-                samesite='Lax',
+                samesite=samesite_flag,
                 max_age=refresh_lifetime,
                 path='/',
                 domain=None,

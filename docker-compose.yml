@@ -91,6 +91,7 @@ services:
     entrypoint: ["/app/entrypoint.sh"]
     depends_on:
       - backend
+    user: "celeryuser:celeryuser"  # Usuario no-root - previene advertencia de seguridad
 
   celery-beat:
     build:
@@ -115,6 +116,7 @@ services:
     entrypoint: ["/app/entrypoint.sh"]
     depends_on:
       - backend
+    user: "celeryuser:celeryuser"  # Usuario no-root - previene advertencia de seguridad
 
   postgres:
     image: postgres:15-alpine

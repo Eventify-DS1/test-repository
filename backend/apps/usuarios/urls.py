@@ -6,7 +6,8 @@ from .auth_views import (CookieTokenObtainPairView,
                          CookieTokenRefreshView, 
                          CookieTokenVerifyView, 
                          LogoutView,
-                         MFAResendCodeView
+                         MFAResendCodeView,
+                         CSRFTokenView
                          )
 
 # Creamos el router
@@ -19,6 +20,7 @@ router.register(r'roles', RolViewSet, basename='rol')
 # Incluimos las rutas generadas automáticamente
 urlpatterns = [
     path('', include(router.urls)),
+    path('csrf-token/', CSRFTokenView.as_view(), name='csrf_token'),  # Endpoint para obtener token CSRF
     path('login/', CookieTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('refresh/', CookieTokenRefreshView.as_view(), name='token_refresh'),
     path('verify/', CookieTokenVerifyView.as_view(), name='token_verify'),

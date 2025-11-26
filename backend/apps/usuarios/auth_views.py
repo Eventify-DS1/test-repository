@@ -9,9 +9,13 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.utils import timezone
+from django.middleware.csrf import get_token
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.utils.decorators import method_decorator
+from django.core.cache import cache
 from datetime import timedelta
 import secrets
-from .models import Usuario, MFACode
+from .models import Usuario, MFACode, LoginAttempt
 from .mfa_tasks import send_mfa_code_email
 
 
@@ -31,26 +35,48 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         if mfa_code and session_id:
             return self._verify_mfa_and_login(request, mfa_code, session_id)
         
+        # Protección contra fuerza bruta
+        ip_address = self._get_client_ip(request)
+        username = request.data.get('username')
+        
+        # Verificar si está bloqueado
+        login_attempt = LoginAttempt.obtener_o_crear(ip_address, username)
+        if login_attempt.esta_bloqueado():
+            tiempo_restante = (login_attempt.bloqueado_hasta - timezone.now()).total_seconds()
+            minutos_restantes = int(tiempo_restante / 60) + 1
+            return Response(
+                {
+                    "error": f"Demasiados intentos fallidos. Intenta nuevamente en {minutos_restantes} minutos.",
+                    "bloqueado": True,
+                    "minutos_restantes": minutos_restantes
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS
+            )
+        
         # Si no hay código MFA, validar credenciales y generar código MFA
         serializer = self.get_serializer(data=request.data)
         try:
             serializer.is_valid(raise_exception=True)
         except Exception as e:
+            login_attempt.incrementar_intento()
             return Response(
                 {"error": "Credenciales inválidas"},
                 status=status.HTTP_401_UNAUTHORIZED
             )
         
         # Obtener usuario
-        username = request.data.get('username')
         password = request.data.get('password')
         user = authenticate(username=username, password=password)
         
         if not user:
+            login_attempt.incrementar_intento()
             return Response(
                 {"error": "Credenciales inválidas"},
                 status=status.HTTP_401_UNAUTHORIZED
             )
+        
+        # Login exitoso, resetear intentos
+        login_attempt.resetear()
         
         # Verificar si MFA está habilitado para el usuario
         if not user.mfa_enabled:
@@ -140,8 +166,9 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         if mfa_code_obj.codigo != mfa_code:
             mfa_code_obj.incrementar_intentos()
             
-            # Bloquear después de 5 intentos fallidos
-            if mfa_code_obj.intentos >= 5:
+            # Bloquear después de X intentos fallidos (configurable)
+            max_intentos_mfa = getattr(settings, 'MFA_MAX_ATTEMPTS', 5)
+            if mfa_code_obj.intentos >= max_intentos_mfa:
                 mfa_code_obj.marcar_como_usado()
                 return Response(
                     {"error": "Demasiados intentos fallidos. Por favor, inicia sesión nuevamente."},
@@ -161,6 +188,14 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         user.last_mfa_verification = timezone.now()
         user.save(update_fields=['last_mfa_verification'])
         
+        # Resetear intentos de login después de login exitoso
+        ip_address = self._get_client_ip(request)
+        try:
+            login_attempt = LoginAttempt.objects.get(ip_address=ip_address, username=user.username)
+            login_attempt.resetear()
+        except LoginAttempt.DoesNotExist:
+            pass
+        
         return self._complete_login(user)
     
     def _complete_login(self, user):
@@ -173,6 +208,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         access_lifetime = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
         refresh_lifetime = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
         secure_flag = not settings.DEBUG
+        samesite_flag = 'Strict' if not settings.DEBUG else 'Lax'  # Strict en producción, Lax en desarrollo
         
         response = Response(
             {"detail": "Login exitoso"},
@@ -184,7 +220,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             value=access,
             httponly=True,
             secure=secure_flag,
-            samesite='Lax',
+            samesite=samesite_flag,
             max_age=access_lifetime,
             path='/',
             domain=None,
@@ -194,13 +230,22 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             value=str(refresh),
             httponly=True,
             secure=secure_flag,
-            samesite='Lax',
+            samesite=samesite_flag,
             max_age=refresh_lifetime,
             path='/',
             domain=None,
         )
         
         return response
+    
+    def _get_client_ip(self, request):
+        """Obtiene la dirección IP real del cliente"""
+        x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(',')[0]
+        else:
+            ip = request.META.get('REMOTE_ADDR')
+        return ip
 
 class CookieTokenRefreshView(TokenRefreshView):
     """Refresca el access token usando el refresh guardado en cookies."""
@@ -227,6 +272,7 @@ class CookieTokenRefreshView(TokenRefreshView):
         access_lifetime = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
         refresh_lifetime = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
         secure_flag = not settings.DEBUG
+        samesite_flag = 'Strict' if not settings.DEBUG else 'Lax'  # Strict en producción, Lax en desarrollo
 
         # Actualizar access token
         response.set_cookie(
@@ -234,7 +280,7 @@ class CookieTokenRefreshView(TokenRefreshView):
             value=new_access,
             httponly=True,
             secure=secure_flag,
-            samesite='Lax',
+            samesite=samesite_flag,
             max_age=access_lifetime,
             path='/',
             domain=None,
@@ -247,7 +293,7 @@ class CookieTokenRefreshView(TokenRefreshView):
                 value=new_refresh,
                 httponly=True,
                 secure=secure_flag,
-                samesite='Lax',
+                samesite=samesite_flag,
                 max_age=refresh_lifetime,
                 path='/',
                 domain=None,
@@ -277,8 +323,9 @@ class LogoutView(APIView):
         # Eliminar cookies con los mismos atributos que se usaron para crearlas
         # Nota: delete_cookie() no acepta 'secure', pero Django maneja la eliminación
         # correctamente si usamos los mismos path y domain
-        response.delete_cookie('access', samesite='Lax', path='/')
-        response.delete_cookie('refresh', samesite='Lax', path='/')
+        samesite_flag = 'Strict' if not settings.DEBUG else 'Lax'
+        response.delete_cookie('access', samesite=samesite_flag, path='/')
+        response.delete_cookie('refresh', samesite=samesite_flag, path='/')
 
         # Blacklist opcional si usas token_blacklist
         refresh_token = request.COOKIES.get('refresh')
@@ -291,6 +338,21 @@ class LogoutView(APIView):
 
         return response
 
+
+class CSRFTokenView(APIView):
+    """
+    Endpoint para obtener el token CSRF.
+    Necesario para APIs REST que usan cookies.
+    """
+    permission_classes = [AllowAny]
+    
+    @method_decorator(ensure_csrf_cookie)
+    def get(self, request):
+        """Devuelve el token CSRF en la cookie y en la respuesta"""
+        csrf_token = get_token(request)
+        return Response({
+            'csrf_token': csrf_token
+        }, status=status.HTTP_200_OK)
 
 class MFAResendCodeView(APIView):
     """Reenvía el código MFA si el usuario no lo recibió."""

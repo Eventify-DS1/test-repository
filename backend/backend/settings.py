@@ -84,6 +84,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
+    'backend.middleware.SecurityHeadersMiddleware',  # Middleware personalizado para CSP y otros headers
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -161,9 +162,28 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'usuarios.Usuario'
 
 
+# Configuración CSRF para APIs REST
+# DRF normalmente desactiva CSRF, pero como usamos cookies, lo habilitamos
+# Solo exentamos endpoints específicos si es necesario
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
+if DEBUG:
+    CSRF_TRUSTED_ORIGINS.extend(['http://localhost:8080', 'http://127.0.0.1:8080'])
+
+# Configuración CSRF para APIs REST con cookies
+# Habilitar CSRF cookie para que el frontend pueda obtenerlo
+CSRF_COOKIE_NAME = 'csrftoken'
+CSRF_USE_SESSIONS = False  # Usar cookies en lugar de sesiones para CSRF
+CSRF_COOKIE_AGE = None  # Cookie de sesión (expira al cerrar navegador)
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'apps.usuarios.auth.CookieJWTAuthentication',
+    ],
+    # Habilitar CSRF para APIs REST cuando se usan cookies
+    # DRF desactiva CSRF por defecto, pero lo necesitamos para cookies
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
     ],
     # DEFAULT_PERMISSION_CLASSES: Permiso por defecto para todos los viewsets
     # Si un viewset no define permission_classes, usará este.
@@ -190,8 +210,10 @@ REST_FRAMEWORK = {
     'rest_framework.throttling.AnonRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-    'user': '100000/day',
-    'anon': '10000/day',
+    # En producción: límites más estrictos para prevenir ataques
+    # En desarrollo: límites más permisivos para facilitar pruebas
+    'user': '1000/hour' if not DEBUG else '100000/day',
+    'anon': '100/hour' if not DEBUG else '10000/day',
     },
     'DEFAULT_VERSIONING_CLASS': 'rest_framework.versioning.NamespaceVersioning',
     'DATETIME_FORMAT': "%Y-%m-%d %H:%M:%S",
@@ -265,6 +287,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.notificaciones.tasks.limpiar_notificaciones_eventos_finalizados',
         'schedule': schedule(run_every=timedelta(hours=12)),  # Cada 12 horas (medio día)
     },
+    'limpiar-intentos-login': {
+        'task': 'apps.usuarios.tasks.limpiar_intentos_login',
+        'schedule': schedule(run_every=timedelta(days=1)),  # Cada día
+    },
 }
 
 CHANNEL_LAYERS = {
@@ -277,3 +303,68 @@ CHANNEL_LAYERS = {
     
     }
 }
+
+# ============================================
+# CONFIGURACIÓN DE SEGURIDAD
+# ============================================
+
+# Configuración de HTTPS y cookies seguras
+# En producción (DEBUG=False), estas opciones deben estar habilitadas
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=not DEBUG)
+SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=not DEBUG)
+CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=not DEBUG)
+SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=31536000 if not DEBUG else 0)  # 1 año en producción
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=not DEBUG)
+SECURE_HSTS_PRELOAD = env.bool('SECURE_HSTS_PRELOAD', default=not DEBUG)
+
+# Headers de seguridad adicionales
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+X_FRAME_OPTIONS = 'DENY'  # Previene clickjacking
+
+# Content Security Policy (CSP)
+# Configuración estricta para prevenir XSS y otros ataques
+CSP_DEFAULT_SRC = env.list('CSP_DEFAULT_SRC', default=["'self'"])
+CSP_SCRIPT_SRC = env.list('CSP_SCRIPT_SRC', default=["'self'", "'unsafe-inline'", "'unsafe-eval'" if DEBUG else ""])
+CSP_STYLE_SRC = env.list('CSP_STYLE_SRC', default=["'self'", "'unsafe-inline'"])
+CSP_IMG_SRC = env.list('CSP_IMG_SRC', default=["'self'", "data:", "https:"])
+CSP_FONT_SRC = env.list('CSP_FONT_SRC', default=["'self'", "data:"])
+CSP_CONNECT_SRC = env.list('CSP_CONNECT_SRC', default=["'self'", "ws:", "wss:" if not DEBUG else ""])
+CSP_FRAME_SRC = env.list('CSP_FRAME_SRC', default=["'none'"])
+CSP_OBJECT_SRC = env.list('CSP_OBJECT_SRC', default=["'none'"])
+CSP_BASE_URI = env.list('CSP_BASE_URI', default=["'self'"])
+CSP_FORM_ACTION = env.list('CSP_FORM_ACTION', default=["'self'"])
+CSP_UPGRADE_INSECURE_REQUESTS = env.bool('CSP_UPGRADE_INSECURE_REQUESTS', default=not DEBUG)
+
+# Construir header CSP
+CSP_HEADER = (
+    f"default-src {' '.join(CSP_DEFAULT_SRC)}; "
+    f"script-src {' '.join([s for s in CSP_SCRIPT_SRC if s])}; "
+    f"style-src {' '.join(CSP_STYLE_SRC)}; "
+    f"img-src {' '.join(CSP_IMG_SRC)}; "
+    f"font-src {' '.join(CSP_FONT_SRC)}; "
+    f"connect-src {' '.join([s for s in CSP_CONNECT_SRC if s])}; "
+    f"frame-src {' '.join(CSP_FRAME_SRC)}; "
+    f"object-src {' '.join(CSP_OBJECT_SRC)}; "
+    f"base-uri {' '.join(CSP_BASE_URI)}; "
+    f"form-action {' '.join(CSP_FORM_ACTION)}; "
+    + (f"upgrade-insecure-requests; " if CSP_UPGRADE_INSECURE_REQUESTS else "")
+)
+
+# Configuración de cookies de sesión
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax' if DEBUG else 'Strict'
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'Lax' if DEBUG else 'Strict'
+
+# Timeout de sesión (en segundos) - 2 horas
+SESSION_COOKIE_AGE = 7200
+SESSION_SAVE_EVERY_REQUEST = False  # Solo actualizar si hay cambios
+# Nota: La configuración de rate limiting está en REST_FRAMEWORK['DEFAULT_THROTTLE_RATES']
+
+# Configuración de protección contra fuerza bruta en login
+LOGIN_MAX_ATTEMPTS = env.int('LOGIN_MAX_ATTEMPTS', default=5)  # Número de intentos antes de bloqueo
+LOGIN_BLOCK_TIME_MINUTES = env.int('LOGIN_BLOCK_TIME_MINUTES', default=15)  # Tiempo de bloqueo en minutos
+
+# Configuración de protección MFA
+MFA_MAX_ATTEMPTS = env.int('MFA_MAX_ATTEMPTS', default=5)  # Número de intentos fallidos de código MFA antes de bloqueo

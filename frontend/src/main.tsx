@@ -2,6 +2,10 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import { BrowserRouter } from "react-router-dom";
 import "./styles/index.css";
+import { initCSRFToken } from "./utils/csrf";
+
+// Inicializar token CSRF al cargar la aplicación
+initCSRFToken();
 
 createRoot(document.getElementById("root")!).render(
   <BrowserRouter

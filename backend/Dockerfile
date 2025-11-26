@@ -18,12 +18,18 @@ COPY requirements.txt /app/
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
+# Crear usuario no-root para Celery (seguridad)
+RUN groupadd -r celeryuser && useradd -r -g celeryuser celeryuser
+
 # Copiar proyecto
 COPY . /app/
 
 # Copiar y hacer ejecutable el entrypoint
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
+
+# Dar permisos al usuario celeryuser para escribir en /app (necesario para migraciones y logs)
+RUN chown -R celeryuser:celeryuser /app
 
 EXPOSE 8000
 

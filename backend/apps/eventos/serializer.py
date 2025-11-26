@@ -4,6 +4,7 @@ from django.utils import timezone
 from .models import Evento, CategoriaEvento, Inscripcion, Reseña
 from apps.usuarios.models import Usuario
 from apps.usuarios.serializer import UsuarioSerializer
+from backend.security_utils import sanitize_text, sanitize_html
 
 class CategoriaEventoSerializer(serializers.ModelSerializer):
     """
@@ -18,6 +19,12 @@ class CategoriaEventoSerializer(serializers.ModelSerializer):
     class Meta:
         model = CategoriaEvento
         fields = '__all__'
+    
+    def validate_nombre(self, value):
+        """Sanitiza el nombre de la categoría para prevenir XSS"""
+        if value:
+            return sanitize_text(value, max_length=50)
+        return value
 
 
 class OrganizadorSerializer(serializers.ModelSerializer):
@@ -165,11 +172,21 @@ class EventoSerializer(serializers.ModelSerializer):
         Valida que las fechas del evento sean lógicas:
         - fecha_fin debe ser posterior a fecha_inicio.
         - fecha_inicio no puede estar en el pasado.
+        También sanitiza campos de texto para prevenir XSS.
         NOTA: Esta validación solo se ejecuta al CREAR o ACTUALIZAR, no al leer.
         """
         # Solo validar si hay datos nuevos (creación o actualización)
         if not attrs:
             return attrs
+        
+        # Sanitizar campos de texto para prevenir XSS
+        if 'titulo' in attrs and attrs['titulo']:
+            attrs['titulo'] = sanitize_text(attrs['titulo'])
+        if 'descripcion' in attrs and attrs['descripcion']:
+            # Para descripción, permitir HTML básico pero sanitizado
+            attrs['descripcion'] = sanitize_html(attrs['descripcion'])
+        if 'ubicacion' in attrs and attrs['ubicacion']:
+            attrs['ubicacion'] = sanitize_text(attrs['ubicacion'])
             
         fecha_inicio = attrs.get('fecha_inicio')
         fecha_fin = attrs.get('fecha_fin')
@@ -332,6 +349,7 @@ class ReseñaSerializer(serializers.ModelSerializer):
         1. El usuario esté inscrito en el evento
         2. El evento haya finalizado
         3. No exista ya una reseña del usuario para este evento
+        También sanitiza el comentario para prevenir XSS.
         """
         request = self.context.get('request')
         evento = attrs.get('evento')
@@ -339,6 +357,10 @@ class ReseñaSerializer(serializers.ModelSerializer):
         
         if not usuario or not usuario.is_authenticated:
             raise serializers.ValidationError("Debes estar autenticado para crear una reseña.")
+        
+        # Sanitizar el comentario para prevenir XSS
+        if 'comentario' in attrs and attrs['comentario']:
+            attrs['comentario'] = sanitize_html(attrs['comentario'])
         
         # Verificar que el evento haya finalizado
         if evento.fecha_fin > timezone.now():
