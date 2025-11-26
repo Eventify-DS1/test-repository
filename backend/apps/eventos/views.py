@@ -395,6 +395,22 @@ class EventoViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eventos_inscritos(self, request):
+        """
+        Retorna todos los eventos donde el usuario está inscrito (sin filtrar por fecha).
+        Útil para mostrar todos los eventos inscritos del usuario.
+        """
+        # Obtener eventos donde el usuario está inscrito
+        inscripciones = Inscripcion.objects.filter(
+            usuario=request.user
+        ).select_related('evento').order_by('-evento__fecha_inicio')
+        
+        eventos_inscritos = [inscripcion.evento for inscripcion in inscripciones]
+        
+        serializer = self.get_serializer(eventos_inscritos, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def eventos_asistidos(self, request):
         """
         Retorna los eventos asistidos por el usuario.
@@ -419,6 +435,65 @@ class EventoViewSet(viewsets.ModelViewSet):
         eventos_asistidos.sort(key=lambda e: e.fecha_fin, reverse=True)
         
         serializer = self.get_serializer(eventos_asistidos, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eventos_creados(self, request):
+        """
+        Retorna los eventos creados por el usuario autenticado (donde es organizador).
+        Incluye todos los eventos creados, ordenados por fecha_inicio (más recientes primero).
+        """
+        from django.utils import timezone
+        
+        # Obtener eventos donde el usuario es organizador
+        eventos_creados = Evento.objects.filter(
+            organizador=request.user
+        ).order_by('-fecha_inicio')
+        
+        serializer = self.get_serializer(eventos_creados, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eventos_pasados_inscritos(self, request):
+        """
+        Retorna los eventos pasados donde el usuario está inscrito.
+        Eventos donde fecha_fin < hoy y el usuario está inscrito.
+        """
+        from django.utils import timezone
+        ahora = timezone.now()
+        
+        # Obtener eventos donde el usuario está inscrito y ya finalizaron
+        inscripciones = Inscripcion.objects.filter(
+            usuario=request.user
+        ).select_related('evento')
+        
+        eventos_pasados = [
+            inscripcion.evento for inscripcion in inscripciones
+            if inscripcion.evento.fecha_fin < ahora
+        ]
+        
+        # Ordenar por fecha_fin (más recientes primero)
+        eventos_pasados.sort(key=lambda e: e.fecha_fin, reverse=True)
+        
+        serializer = self.get_serializer(eventos_pasados, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eventos_pasados_creados(self, request):
+        """
+        Retorna los eventos pasados creados por el usuario autenticado (donde es organizador).
+        Eventos donde fecha_fin < hoy.
+        """
+        from django.utils import timezone
+        ahora = timezone.now()
+        
+        # Obtener eventos pasados donde el usuario es organizador
+        eventos_pasados = Evento.objects.filter(
+            organizador=request.user,
+            fecha_fin__lt=ahora
+        ).order_by('-fecha_fin')
+        
+        serializer = self.get_serializer(eventos_pasados, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
         
     

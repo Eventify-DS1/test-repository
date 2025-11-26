@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from "react-router-dom";
-import { Home, Search, Plus, FileText, Bell, Star, User, LogOut, Loader2, Key, Calendar } from "lucide-react";
+import { Home, Search, Plus, FileText, Bell, Star, User, LogOut, Loader2, Key, Calendar, List } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ type MenuItem = {
 
 const menuItems: MenuItem[] = [
   { icon: Home, label: "Inicio", path: "/dashboard" },
+  { icon: List, label: "Mis eventos", path: "/dashboard/mis-eventos" },
   { icon: Search, label: "Buscar eventos", path: "/dashboard/search" },
   { icon: Calendar, label: "Calendario", path: "/dashboard/calendario" },
   { icon: Plus, label: "Crear evento", path: "/dashboard/create" },

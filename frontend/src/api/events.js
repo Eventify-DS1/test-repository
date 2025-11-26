@@ -91,3 +91,23 @@ export const getAttendedEventsRequest = () => {
 export const getPopularEventsRequest = () => {
     return apiClient.get('/events-utils/eventos/eventos_populares/');
 };
+
+// Obtener eventos creados por el usuario (donde es organizador)
+export const getMyCreatedEventsRequest = () => {
+    return apiClient.get('/events-utils/eventos/eventos_creados/');
+};
+
+// Obtener eventos pasados donde el usuario está inscrito
+export const getPastSubscribedEventsRequest = () => {
+    return apiClient.get('/events-utils/eventos/eventos_pasados_inscritos/');
+};
+
+// Obtener eventos pasados creados por el usuario
+export const getPastCreatedEventsRequest = () => {
+    return apiClient.get('/events-utils/eventos/eventos_pasados_creados/');
+};
+
+// Obtener todos los eventos donde el usuario está inscrito (sin filtrar por fecha)
+export const getAllSubscribedEventsRequest = () => {
+    return apiClient.get('/events-utils/eventos/eventos_inscritos/');
+};

@@ -21,6 +21,7 @@ import RateEventForm from "./pages/RateEventForm";
 import ConfirmAttendance from "./pages/ConfirmAttendance";
 import DashboardCalendar from "./pages/DashboardCalendar";
 import EditEvent from "./pages/EditEvent";
+import MisEventos from "./pages/MisEventos";
 import DashboardLayout from "./components/layout/DashboardLayout";
 
 const queryClient = new QueryClient();
@@ -45,6 +46,7 @@ const App = () => {
             <Route path="/dashboard/create" element={<CreateEvent />} />
             <Route path="/dashboard/profile" element={<Profile />} />
             <Route path="/dashboard/notifications" element={<Notifications />} />
+            <Route path="/dashboard/mis-eventos" element={<MisEventos />} />
           </Route>
           <Route path="/register" element={<RegisterPage />}/>
           <Route path="/login" element={<LoginPage />}/>
