@@ -22,7 +22,7 @@ import {
 import { Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 interface Categoria {
   id: number;
@@ -30,10 +30,22 @@ interface Categoria {
 }
 
 const CreateEvent = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [category, setCategory] = useState("");
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  
+  // Obtener datos de plantilla desde location.state si existen
+  const templateData = location.state?.templateData as {
+    titulo?: string;
+    descripcion?: string;
+    aforo?: number;
+    ubicacion?: string;
+    categoria_id?: number;
+    fecha_inicio?: string;
+    fecha_fin?: string;
+  } | undefined;
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -56,6 +68,11 @@ const CreateEvent = () => {
         const response = await getCategoriasRequest();
         const categoriasData = response.data.results || response.data;
         setCategorias(Array.isArray(categoriasData) ? categoriasData : []);
+        
+        // Si hay datos de plantilla, establecer la categoría
+        if (templateData?.categoria_id) {
+          setCategory(templateData.categoria_id.toString());
+        }
       } catch (error) {
         console.error("Error al cargar categorías:", error);
         toast.error("No se pudieron cargar las categorías");
@@ -63,7 +80,7 @@ const CreateEvent = () => {
     };
 
     fetchCategorias();
-  }, []);
+  }, [templateData]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -175,6 +192,7 @@ const CreateEvent = () => {
                   placeholder="Ej: Workshop de Inteligencia Artificial"
                   required
                   disabled={loading}
+                  defaultValue={templateData?.titulo || ""}
                 />
               </div>
 
@@ -188,6 +206,7 @@ const CreateEvent = () => {
                   rows={5}
                   required
                   disabled={loading}
+                  defaultValue={templateData?.descripcion || ""}
                 />
               </div>
 
@@ -202,6 +221,8 @@ const CreateEvent = () => {
                     required
                     disabled={loading}
                     onKeyDown={(e) => e.preventDefault()}
+                    defaultValue={templateData?.fecha_inicio ? 
+                      new Date(templateData.fecha_inicio).toISOString().slice(0, 16) : ""}
                   />
                 </div>
                 <div className="space-y-2">
@@ -213,6 +234,8 @@ const CreateEvent = () => {
                     required
                     disabled={loading}
                     onKeyDown={(e) => e.preventDefault()}
+                    defaultValue={templateData?.fecha_fin ? 
+                      new Date(templateData.fecha_fin).toISOString().slice(0, 16) : ""}
                   />
                 </div>
               </div>
@@ -229,6 +252,7 @@ const CreateEvent = () => {
                     min="1"
                     required
                     disabled={loading}
+                    defaultValue={templateData?.aforo || ""}
                   />
                 </div>
 
@@ -269,6 +293,7 @@ const CreateEvent = () => {
                   placeholder="Ej: Auditorio Principal"
                   required
                   disabled={loading}
+                  defaultValue={templateData?.ubicacion || ""}
                 />
               </div>
 

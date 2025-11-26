@@ -86,7 +86,13 @@ const MisEventos = () => {
   };
 
   // Función para mapear eventos del backend al formato de EventCard
-  const mapEventToCard = (evento: EventoBackend): EventoMapeado => ({
+  const mapEventToCard = (evento: EventoBackend): EventoMapeado & {
+    organizadorId?: number;
+    descripcion?: string;
+    categoriaId?: number;
+    fechaInicio?: string;
+    fechaFin?: string;
+  } => ({
     id: evento.id.toString(),
     title: evento.titulo,
     category: evento.categoria?.nombre || "Sin categoría",
@@ -95,7 +101,12 @@ const MisEventos = () => {
     location: evento.ubicacion,
     capacity: evento.aforo,
     registered: evento.numero_inscritos || 0,
-    image: getImageUrl(evento.foto)
+    image: getImageUrl(evento.foto),
+    organizadorId: evento.organizador?.id,
+    descripcion: evento.descripcion,
+    categoriaId: evento.categoria?.id,
+    fechaInicio: evento.fecha_inicio,
+    fechaFin: evento.fecha_fin,
   });
 
   // Cargar eventos inscritos
@@ -298,6 +309,11 @@ const MisEventos = () => {
                           registered={evento.registered}
                           image={evento.image}
                           skipAuthCheck={false}
+                          organizadorId={evento.organizadorId}
+                          descripcion={evento.descripcion}
+                          categoriaId={evento.categoriaId}
+                          fechaInicio={evento.fechaInicio}
+                          fechaFin={evento.fechaFin}
                         />
                       ))}
                     </div>
@@ -358,6 +374,11 @@ const MisEventos = () => {
                           registered={evento.registered}
                           image={evento.image}
                           skipAuthCheck={false}
+                          organizadorId={evento.organizadorId}
+                          descripcion={evento.descripcion}
+                          categoriaId={evento.categoriaId}
+                          fechaInicio={evento.fechaInicio}
+                          fechaFin={evento.fechaFin}
                         />
                       ))}
                     </div>
@@ -423,6 +444,11 @@ const MisEventos = () => {
                                 registered={evento.registered}
                                 image={evento.image}
                                 skipAuthCheck={false}
+                                organizadorId={evento.organizadorId}
+                                descripcion={evento.descripcion}
+                                categoriaId={evento.categoriaId}
+                                fechaInicio={evento.fechaInicio}
+                                fechaFin={evento.fechaFin}
                               />
                             ))}
                           </div>
@@ -450,6 +476,11 @@ const MisEventos = () => {
                                 registered={evento.registered}
                                 image={evento.image}
                                 skipAuthCheck={false}
+                                organizadorId={evento.organizadorId}
+                                descripcion={evento.descripcion}
+                                categoriaId={evento.categoriaId}
+                                fechaInicio={evento.fechaInicio}
+                                fechaFin={evento.fechaFin}
                               />
                             ))}
                           </div>

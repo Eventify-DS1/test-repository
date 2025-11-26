@@ -724,17 +724,21 @@ const EventDetail = () => {
               )}
               {isOwner && (
                 <div className="space-y-3 mt-6">
-                  <Button className="w-full bg-blue-600 text-white" asChild>
+                  <Button 
+                    className="w-full gradient-primary text-white border-0" 
+                    asChild
+                  >
                     <Link to={`/dashboard/eventos/editar/${evento.id}`}>Editar evento</Link>
-                    </Button>
-                    <Button
-                    className="w-full bg-red-600 text-white"
+                  </Button>
+                  <Button
+                    className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                    variant="destructive"
                     onClick={() => handleDelete(evento.id)}
-                    >
-                      Borrar evento
-                      </Button>
-                      </div>
-                    )}
+                  >
+                    Borrar evento
+                  </Button>
+                </div>
+              )}
 
 
               {evento.inscritos && evento.inscritos.length > 0 ? (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, MapPin, Users, CheckCircle2, Loader2 } from "lucide-react";
+import { Calendar, MapPin, Users, CheckCircle2, Loader2, Copy } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import {
   unsubscribeFromEventRequest 
 } from "@/api/events";
 import { verifyTokenRequest } from "@/api/auth";
+import { getCurrentUserRequest } from "@/api/users";
 
 interface EventCardProps {
   id: string;
@@ -24,6 +25,11 @@ interface EventCardProps {
   registered: number;
   image?: string;
   skipAuthCheck?: boolean; // Si es true, no verifica autenticación (para páginas públicas)
+  organizadorId?: number; // ID del organizador del evento
+  descripcion?: string; // Descripción del evento para usar como plantilla
+  categoriaId?: number; // ID de la categoría
+  fechaInicio?: string; // Fecha de inicio en formato ISO para plantilla
+  fechaFin?: string; // Fecha de fin en formato ISO para plantilla
 }
 
 const EventCard = ({
@@ -37,6 +43,11 @@ const EventCard = ({
   registered,
   image,
   skipAuthCheck = false,
+  organizadorId,
+  descripcion,
+  categoriaId,
+  fechaInicio,
+  fechaFin,
 }: EventCardProps) => {
   const location_hook = useLocation();
   const navigate = useNavigate();
@@ -46,6 +57,8 @@ const EventCard = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
   
   // Detectar si estamos en el dashboard o en la vista pública
   const isFromDashboard = location_hook.pathname.startsWith('/dashboard');
@@ -71,6 +84,20 @@ const EventCard = ({
         await verifyTokenRequest();
         setIsAuthenticated(true);
         
+        // Obtener información del usuario actual
+        try {
+          const userResponse = await getCurrentUserRequest();
+          const userId = userResponse.data.id;
+          setCurrentUserId(userId);
+          
+          // Verificar si el usuario es el organizador
+          if (organizadorId && userId === organizadorId) {
+            setIsOwner(true);
+          }
+        } catch (error) {
+          console.error('Error obteniendo usuario actual:', error);
+        }
+        
         // Verificar si está inscrito
         try {
           const response = await checkInscriptionRequest(parseInt(id));
@@ -94,7 +121,7 @@ const EventCard = ({
     };
     
     checkAuthAndSubscription();
-  }, [id, skipAuthCheck]);
+  }, [id, skipAuthCheck, organizadorId]);
   
   const handleSubscribe = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -168,6 +195,25 @@ const EventCard = ({
       setIsLoading(false);
     }
   };
+
+  const handleUseAsTemplate = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Preparar datos del evento para usar como plantilla
+    const templateData = {
+      titulo: title,
+      descripcion: descripcion || '',
+      aforo: capacity,
+      ubicacion: location,
+      categoria_id: categoriaId,
+      fecha_inicio: fechaInicio,
+      fecha_fin: fechaFin,
+    };
+    
+    // Navegar a CreateEvent con los datos en el state
+    navigate('/dashboard/create', { state: { templateData } });
+  };
   
   const getCategoryColor = (cat: string) => {
     switch (cat.toLowerCase()) {
@@ -230,32 +276,39 @@ const EventCard = ({
         {!isChecking && (
           <>
             {isAuthenticated ? (
-              <Button
-                onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
-                disabled={isLoading || spotsLeft <= 0}
-                className={`w-full ${
-                  isSubscribed
-                    ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground"
-                    : "gradient-primary text-white border-0"
-                }`}
-                variant={isSubscribed ? "secondary" : "default"}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isSubscribed ? "Desinscribiendo..." : "Inscribiendo..."}
-                  </>
-                ) : isSubscribed ? (
-                  <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Inscrito
-                  </>
-                ) : spotsLeft <= 0 ? (
-                  "Evento lleno"
-                ) : (
-                  "Inscribirse"
-                )}
-              </Button>
+              // No mostrar botón de inscribirse si el usuario es el organizador
+              !isOwner ? (
+                <Button
+                  onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
+                  disabled={isLoading || spotsLeft <= 0}
+                  className={`w-full ${
+                    isSubscribed
+                      ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                      : "gradient-primary text-white border-0"
+                  }`}
+                  variant={isSubscribed ? "secondary" : "default"}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {isSubscribed ? "Desinscribiendo..." : "Inscribiendo..."}
+                    </>
+                  ) : isSubscribed ? (
+                    <>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Inscrito
+                    </>
+                  ) : spotsLeft <= 0 ? (
+                    "Evento lleno"
+                  ) : (
+                    "Inscribirse"
+                  )}
+                </Button>
+              ) : (
+                <div className="w-full py-2 px-4 text-center text-sm text-muted-foreground bg-muted/50 rounded-md">
+                  Eres el organizador de este evento
+                </div>
+              )
             ) : (
               <Button
                 onClick={(e) => {
@@ -282,6 +335,19 @@ const EventCard = ({
         <Button asChild className="w-full" variant="outline">
           <Link to={detailRoute}>Ver detalles</Link>
         </Button>
+        
+        {/* Botón para usar como plantilla (solo si el usuario es el organizador) */}
+        {isOwner && isAuthenticated && (
+          <Button
+            onClick={handleUseAsTemplate}
+            className="w-full"
+            variant="outline"
+            disabled={isLoading}
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            Usar como plantilla
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
