@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import Usuario, Rol, MFACode
+from .models import Usuario, Rol, MFACode, PasswordResetCode, LoginAttempt
 
 @admin.register(Rol)
 class RolAdmin(admin.ModelAdmin):
@@ -40,3 +40,23 @@ class MFACodeAdmin(admin.ModelAdmin):
     
     def has_add_permission(self, request):
         return False  # Los códigos solo se generan automáticamente
+
+@admin.register(PasswordResetCode)
+class PasswordResetCodeAdmin(admin.ModelAdmin):
+    list_display = ['usuario', 'codigo', 'session_id', 'creado_en', 'usado', 'intentos']
+    list_filter = ['usado', 'creado_en']
+    search_fields = ['usuario__username', 'usuario__email', 'session_id', 'codigo']
+    readonly_fields = ['codigo', 'session_id', 'creado_en']
+    
+    def has_add_permission(self, request):
+        return False  # Los códigos solo se generan automáticamente
+
+@admin.register(LoginAttempt)
+class LoginAttemptAdmin(admin.ModelAdmin):
+    list_display = ['ip_address', 'username', 'intentos', 'ultimo_intento', 'bloqueado_hasta']
+    list_filter = ['bloqueado_hasta', 'ultimo_intento']
+    search_fields = ['ip_address', 'username']
+    readonly_fields = ['ip_address', 'username', 'intentos', 'ultimo_intento', 'creado_en']
+    
+    def has_add_permission(self, request):
+        return False  # Los intentos se crean automáticamente

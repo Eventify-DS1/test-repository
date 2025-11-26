@@ -7,7 +7,10 @@ from .auth_views import (CookieTokenObtainPairView,
                          CookieTokenVerifyView, 
                          LogoutView,
                          MFAResendCodeView,
-                         CSRFTokenView
+                         CSRFTokenView,
+                         PasswordResetRequestView,
+                         PasswordResetVerifyView,
+                         PasswordResetConfirmView
                          )
 
 # Creamos el router
@@ -26,4 +29,8 @@ urlpatterns = [
     path('verify/', CookieTokenVerifyView.as_view(), name='token_verify'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('mfa/resend/', MFAResendCodeView.as_view(), name='mfa_resend'),
+    # Recuperación de contraseña
+    path('password-reset/request/', PasswordResetRequestView.as_view(), name='password_reset_request'),
+    path('password-reset/verify/', PasswordResetVerifyView.as_view(), name='password_reset_verify'),
+    path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
 ]

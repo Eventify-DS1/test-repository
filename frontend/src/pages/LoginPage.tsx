@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { loginRequest, resendMFACodeRequest } from '../api/auth.js';
+import { loginRequest, resendMFACodeRequest, passwordResetRequest, passwordResetVerify, passwordResetConfirm } from '../api/auth.js';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, Loader2, Mail, ArrowLeft } from 'lucide-react';
+import { Calendar, Loader2, Mail, ArrowLeft, Lock } from 'lucide-react';
 import Header from '@/components/layout/Header';
 
 function LoginPage() {
@@ -18,6 +18,18 @@ function LoginPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [resendingCode, setResendingCode] = useState(false);
+  
+  // Estados para recuperación de contraseña
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSessionId, setResetSessionId] = useState(null);
+  const [resetCode, setResetCode] = useState('');
+  const [resetCodeVerified, setResetCodeVerified] = useState(false);
+  const [emailMasked, setEmailMasked] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPassword2, setNewPassword2] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -100,6 +112,125 @@ function LoginPage() {
     setError(null);
   };
 
+  // Funciones para recuperación de contraseña
+  const handlePasswordResetRequest = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setResetLoading(true);
+
+    try {
+      const response = await passwordResetRequest(resetEmail);
+      if (response.data.session_id) {
+        setResetSessionId(response.data.session_id);
+        // Si el código viene en la respuesta (modo desarrollo), mostrarlo
+        if (response.data.codigo) {
+          setError(`⚠️ Modo desarrollo: Tu código de recuperación es ${response.data.codigo}`);
+        } else if (!response.data.email_sent) {
+          setError('⚠️ No se pudo enviar el código por email. Verifica la configuración de email.');
+        } else {
+          setError(null);
+        }
+      }
+    } catch (err) {
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else {
+        setError('Error al solicitar recuperación de contraseña. Intenta nuevamente.');
+      }
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handlePasswordResetVerify = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setResetLoading(true);
+
+    try {
+      const response = await passwordResetVerify(resetSessionId, resetCode);
+      if (response.data.verified) {
+        setResetCodeVerified(true);
+        setEmailMasked(response.data.email_masked);
+        setError(null);
+      }
+    } catch (err) {
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+        if (err.response.data.error.includes('Demasiados intentos')) {
+          // Volver al paso inicial
+          setResetSessionId(null);
+          setResetCode('');
+        }
+      } else {
+        setError('Código incorrecto. Intenta nuevamente.');
+      }
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handlePasswordResetConfirm = async (e) => {
+    e.preventDefault();
+    setError(null);
+
+    if (newPassword !== newPassword2) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    setResetLoading(true);
+
+    try {
+      const response = await passwordResetConfirm(resetSessionId, resetCode, newPassword, newPassword2);
+      if (response.data.detail) {
+        alert('Contraseña cambiada exitosamente. Ya puedes iniciar sesión.');
+        // Volver al login
+        setShowPasswordReset(false);
+        setResetEmail('');
+        setResetSessionId(null);
+        setResetCode('');
+        setResetCodeVerified(false);
+        setNewPassword('');
+        setNewPassword2('');
+        setEmailMasked('');
+      }
+    } catch (err) {
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else {
+        setError('Error al cambiar la contraseña. Intenta nuevamente.');
+      }
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleBackToPasswordReset = () => {
+    setResetCodeVerified(false);
+    setResetCode('');
+    setNewPassword('');
+    setNewPassword2('');
+    setError(null);
+  };
+
+  const handleBackToLoginFromReset = () => {
+    setShowPasswordReset(false);
+    setResetEmail('');
+    setResetSessionId(null);
+    setResetCode('');
+    setResetCodeVerified(false);
+    setNewPassword('');
+    setNewPassword2('');
+    setEmailMasked('');
+    setError(null);
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
@@ -121,7 +252,214 @@ function LoginPage() {
           </CardHeader>
           
           <CardContent>
-            {!mfaRequired ? (
+            {showPasswordReset ? (
+              // Flujo de recuperación de contraseña
+              !resetSessionId ? (
+                // Paso 1: Solicitar código de recuperación
+                <form onSubmit={handlePasswordResetRequest} className="space-y-4">
+                  <div className="text-center mb-4">
+                    <Lock className="h-12 w-12 mx-auto text-primary mb-2" />
+                    <CardTitle className="text-xl">Recuperar Contraseña</CardTitle>
+                    <CardDescription className="mt-2">
+                      Ingresa tu correo electrónico y te enviaremos un código de recuperación.
+                    </CardDescription>
+                  </div>
+
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="resetEmail" className="text-base font-medium">
+                      Correo Electrónico
+                    </Label>
+                    <Input
+                      id="resetEmail"
+                      type="email"
+                      placeholder="tu@email.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value.toLowerCase())}
+                      required
+                      disabled={resetLoading}
+                      className="h-12 text-base"
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base gradient-primary text-white border-0 hover:opacity-90 transition-all"
+                    disabled={resetLoading}
+                  >
+                    {resetLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Enviando código...
+                      </>
+                    ) : (
+                      'Enviar Código de Recuperación'
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleBackToLoginFromReset}
+                    disabled={resetLoading}
+                    className="w-full"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver al inicio de sesión
+                  </Button>
+                </form>
+              ) : !resetCodeVerified ? (
+                // Paso 2: Verificar código y mostrar email parcial
+                <form onSubmit={handlePasswordResetVerify} className="space-y-4">
+                  <div className="text-center mb-4">
+                    <Mail className="h-12 w-12 mx-auto text-primary mb-2" />
+                    <CardTitle className="text-xl">Verificar Código</CardTitle>
+                    <CardDescription className="mt-2">
+                      Hemos enviado un código de recuperación a tu email.
+                      Ingresa el código para continuar.
+                    </CardDescription>
+                  </div>
+
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="resetCode" className="text-base font-medium">
+                      Código de Recuperación
+                    </Label>
+                    <Input
+                      id="resetCode"
+                      type="text"
+                      placeholder="000000"
+                      value={resetCode}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setResetCode(value);
+                      }}
+                      required
+                      disabled={resetLoading}
+                      className="h-12 text-base text-center text-2xl tracking-widest font-mono"
+                      maxLength={6}
+                      autoFocus
+                    />
+                    <p className="text-xs text-muted-foreground text-center">
+                      Ingresa el código de 6 dígitos que recibiste por email
+                    </p>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base gradient-primary text-white border-0 hover:opacity-90 transition-all"
+                    disabled={resetLoading || resetCode.length !== 6}
+                  >
+                    {resetLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Verificando...
+                      </>
+                    ) : (
+                      'Verificar Código'
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleBackToPasswordReset}
+                    disabled={resetLoading}
+                    className="w-full"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver
+                  </Button>
+                </form>
+              ) : (
+                // Paso 3: Cambiar contraseña
+                <form onSubmit={handlePasswordResetConfirm} className="space-y-4">
+                  <div className="text-center mb-4">
+                    <Lock className="h-12 w-12 mx-auto text-primary mb-2" />
+                    <CardTitle className="text-xl">Nueva Contraseña</CardTitle>
+                    <CardDescription className="mt-2">
+                      Código verificado para: <strong>{emailMasked}</strong>
+                    </CardDescription>
+                  </div>
+
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword" className="text-base font-medium">
+                      Nueva Contraseña
+                    </Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      placeholder="Mínimo 8 caracteres"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                      disabled={resetLoading}
+                      className="h-12 text-base"
+                      minLength={8}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword2" className="text-base font-medium">
+                      Confirmar Nueva Contraseña
+                    </Label>
+                    <Input
+                      id="newPassword2"
+                      type="password"
+                      placeholder="Repite la contraseña"
+                      value={newPassword2}
+                      onChange={(e) => setNewPassword2(e.target.value)}
+                      required
+                      disabled={resetLoading}
+                      className="h-12 text-base"
+                      minLength={8}
+                    />
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full h-12 text-base gradient-primary text-white border-0 hover:opacity-90 transition-all"
+                    disabled={resetLoading || newPassword !== newPassword2 || newPassword.length < 8}
+                  >
+                    {resetLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Cambiando contraseña...
+                      </>
+                    ) : (
+                      'Cambiar Contraseña'
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleBackToPasswordReset}
+                    disabled={resetLoading}
+                    className="w-full"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Volver
+                  </Button>
+                </form>
+              )
+            ) : !mfaRequired ? (
               // Paso 1: Login con credenciales
               <form onSubmit={handleSubmit} className="space-y-4">
                 {error && (
@@ -177,11 +515,23 @@ function LoginPage() {
                   )}
                 </Button>
                 
-                <div className="text-center text-sm text-muted-foreground">
-                  ¿No tienes una cuenta?{' '}
-                  <Link to="/register" className="text-primary font-semibold hover:underline">
-                    Regístrate aquí
-                  </Link>
+                <div className="space-y-2">
+                  <div className="text-center text-sm text-muted-foreground">
+                    ¿No tienes una cuenta?{' '}
+                    <Link to="/register" className="text-primary font-semibold hover:underline">
+                      Regístrate aquí
+                    </Link>
+                  </div>
+                  <div className="text-center">
+                    <Button
+                      type="button"
+                      variant="link"
+                      onClick={() => setShowPasswordReset(true)}
+                      className="text-sm text-muted-foreground hover:text-primary"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </Button>
+                  </div>
                 </div>
               </form>
             ) : (

@@ -35,6 +35,27 @@ export const refreshTokenRequest = () => {
   return apiClient.post('/users-utils/refresh/');
 };
 
+// Funciones para recuperación de contraseña
+export const passwordResetRequest = (email) => {
+  return apiClient.post('/users-utils/password-reset/request/', { email });
+};
+
+export const passwordResetVerify = (sessionId, codigo) => {
+  return apiClient.post('/users-utils/password-reset/verify/', { 
+    session_id: sessionId, 
+    codigo 
+  });
+};
+
+export const passwordResetConfirm = (sessionId, codigo, newPassword, newPassword2) => {
+  return apiClient.post('/users-utils/password-reset/confirm/', {
+    session_id: sessionId,
+    codigo,
+    new_password: newPassword,
+    new_password2: newPassword2
+  });
+};
+
 // Función para obtener roles disponibles
 export const getRolesRequest = () => {
   return apiClient.get('/users-utils/roles/');
