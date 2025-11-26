@@ -9,3 +9,16 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 # Archivo .env
 REDIS_ENDPOINT=redis-11622.c325.us-east-1-4.ec2.cloud.redislabs.com:11622
 REDIS_PASS=buL2cdbBjH0NHzuqwerEmNgSrNNES2QO
+
+#Para envío de correos
+# Email Configuration
+# EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+# Para producción, cambia a:
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=eventifyuv@gmail.com
+EMAIL_HOST_PASSWORD=jihjiycgzuigcstc
+DEFAULT_FROM_EMAIL=eventifyuv@gmail.com

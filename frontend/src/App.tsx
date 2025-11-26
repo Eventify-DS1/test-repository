@@ -11,9 +11,11 @@ import Search from "./pages/Search";
 import CreateEvent from "./pages/CreateEvent";
 import Profile from "./pages/Profile";
 import EventDetail from "./pages/EventDetail";
+import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import DashboardLayout from "./components/layout/DashboardLayout";
 
 const queryClient = new QueryClient();
 
@@ -22,17 +24,20 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Sonner />
+        <Sonner position="top-center" />
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/eventos" element={<EventsList />} />
           <Route path="/event/:id" element={<EventDetail />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/dashboard/search" element={<Search />} />
-          <Route path="/dashboard/event/:id" element={<EventDetail />} /> 
-          <Route path="/dashboard/create" element={<CreateEvent />} />
-          <Route path="/dashboard/profile" element={<Profile />} />
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard/search" element={<Search />} />
+            <Route path="/dashboard/event/:id" element={<EventDetail />} /> 
+            <Route path="/dashboard/create" element={<CreateEvent />} />
+            <Route path="/dashboard/profile" element={<Profile />} />
+            <Route path="/dashboard/notifications" element={<Notifications />} />
+          </Route>
           <Route path="/register" element={<RegisterPage />}/>
           <Route path="/login" element={<LoginPage />}/>
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
