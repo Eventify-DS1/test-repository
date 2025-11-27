@@ -21,5 +21,10 @@ export const getCurrentUserRequest = () => {
 
 // Actualizar el usuario actual
 export const updateCurrentUserRequest = (userData) => {
-  return apiClient.patch('/users-utils/usuarios/me/', userData);
+  // Si userData es FormData, usar multipart/form-data
+  const headers = userData instanceof FormData 
+    ? { 'Content-Type': 'multipart/form-data' }
+    : {};
+  
+  return apiClient.patch('/users-utils/usuarios/me/', userData, { headers });
 };

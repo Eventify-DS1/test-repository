@@ -10,6 +10,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getCurrentUserRequest, updateCurrentUserRequest } from "@/api/users";
 import { refreshTokenRequest } from "@/api/auth";
+import { getImageUrl } from "@/utils/imageHelpers";
 
 interface Usuario {
   id: number;
@@ -32,6 +33,7 @@ const Profile = () => {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -130,17 +132,60 @@ const Profile = () => {
     }
   };
 
-  // Usar la función helper centralizada para obtener URLs de imágenes
-  const getImageUrlForProfile = (foto: string | null) => {
-    if (!foto) return undefined;
-    if (foto.startsWith('http')) return foto;
-    // En desarrollo, usar ruta relativa (el proxy de Vite maneja /media)
-    if (import.meta.env.DEV) {
-      return foto.startsWith('/') ? foto : `/${foto}`;
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo de archivo
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor, selecciona un archivo de imagen válido');
+      return;
     }
-    // En producción, usar la URL completa
-    const baseURL = import.meta.env.VITE_API_URL || window.location.origin;
-    return `${baseURL}${foto.startsWith('/') ? foto : `/${foto}`}`;
+
+    // Validar tamaño (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La imagen no puede ser mayor a 5MB');
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append('foto', file);
+
+      await updateCurrentUserRequest(formData);
+      await fetchUsuario();
+      toast.success('Foto de perfil actualizada exitosamente');
+    } catch (error: any) {
+      console.error('Error al actualizar foto:', error);
+      const errorMessage = error?.response?.data?.foto?.[0] || 
+                          error?.response?.data?.detail || 
+                          'Error al actualizar la foto de perfil';
+      toast.error(errorMessage);
+    } finally {
+      setUploadingPhoto(false);
+      // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
+      e.target.value = '';
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    if (!confirm('¿Estás seguro de que quieres eliminar tu foto de perfil?')) {
+      return;
+    }
+
+    setUploadingPhoto(true);
+    try {
+      // Enviar null para eliminar la foto
+      await updateCurrentUserRequest({ foto: null });
+      await fetchUsuario();
+      toast.success('Foto de perfil eliminada exitosamente');
+    } catch (error: any) {
+      console.error('Error al eliminar foto:', error);
+      toast.error('Error al eliminar la foto de perfil');
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const getInitials = () => {
@@ -194,17 +239,42 @@ const Profile = () => {
             </CardHeader>
             <CardContent className="flex items-center gap-6">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={usuario?.foto ? getImageUrlForProfile(usuario.foto) : undefined} alt="Profile" />
+                <AvatarImage src={usuario?.foto ? getImageUrl(usuario.foto) : undefined} alt="Profile" />
                 <AvatarFallback className="text-2xl gradient-primary text-white">
                   {getInitials()}
                 </AvatarFallback>
               </Avatar>
               <div className="flex gap-3">
-                <Button variant="outline" className="gap-2" disabled>
-                  <Camera className="h-4 w-4" />
-                  Cambiar foto
-                </Button>
-                <Button variant="ghost" disabled>Eliminar</Button>
+                <label htmlFor="photo-upload">
+                  <Button 
+                    variant="outline" 
+                    className="gap-2 cursor-pointer" 
+                    disabled={uploadingPhoto}
+                    asChild
+                  >
+                    <span>
+                      <Camera className="h-4 w-4" />
+                      {uploadingPhoto ? 'Subiendo...' : 'Cambiar foto'}
+                    </span>
+                  </Button>
+                </label>
+                <input
+                  id="photo-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoChange}
+                  className="hidden"
+                  disabled={uploadingPhoto}
+                />
+                {usuario?.foto && (
+                  <Button 
+                    variant="ghost" 
+                    onClick={handleDeletePhoto}
+                    disabled={uploadingPhoto}
+                  >
+                    Eliminar
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

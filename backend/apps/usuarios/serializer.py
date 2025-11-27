@@ -187,9 +187,19 @@ class UsuarioSerializer(serializers.ModelSerializer):
         Permite actualizar un usuario:
         - Si incluye contraseña, se re-encripta con set_password().
         - Los demás atributos se actualizan de forma dinámica con setattr().
+        - Maneja la eliminación de foto cuando se envía None o string vacío.
         """
         password = validated_data.pop('password', None)
         validated_data.pop('password2', None)
+        
+        # Manejar eliminación de foto
+        if 'foto' in validated_data:
+            foto_value = validated_data.pop('foto')
+            # Si es None, string vacío, o False, eliminar la foto
+            if foto_value is None or foto_value == '' or foto_value is False:
+                instance.foto = None
+            else:
+                instance.foto = foto_value
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
