@@ -23,6 +23,7 @@ import DashboardCalendar from "./pages/DashboardCalendar";
 import EditEvent from "./pages/EditEvent";
 import MisEventos from "./pages/MisEventos";
 import DashboardLayout from "./components/layout/DashboardLayout";
+import Reports from "./pages/Reports"
 
 const queryClient = new QueryClient();
 
@@ -47,6 +48,7 @@ const App = () => {
             <Route path="/dashboard/profile" element={<Profile />} />
             <Route path="/dashboard/notifications" element={<Notifications />} />
             <Route path="/dashboard/mis-eventos" element={<MisEventos />} />
+            <Route path="/dashboard/reports" element={<Reports />} />
           </Route>
           <Route path="/register" element={<RegisterPage />}/>
           <Route path="/login" element={<LoginPage />}/>
