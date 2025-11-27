@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Search from "./pages/Search";
 import CreateEvent from "./pages/CreateEvent";
 import Profile from "./pages/Profile";
+import PublicProfile from "./pages/PublicProfile";
 import EventDetail from "./pages/EventDetail";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
@@ -38,6 +39,8 @@ const App = () => {
           <Route path="/calendario" element={<Calendario />} />
           <Route path="/eventos" element={<EventsList />} />
           <Route path="/event/:id" element={<EventDetail />} />
+          <Route path="/user/:id" element={<PublicProfile />} />
+          <Route path="/dashboard/user/:id" element={<PublicProfile />} />
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/search" element={<Search />} />

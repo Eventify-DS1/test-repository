@@ -28,3 +28,8 @@ export const updateCurrentUserRequest = (userData) => {
   
   return apiClient.patch('/users-utils/usuarios/me/', userData, { headers });
 };
+
+// Obtener perfil público de un usuario
+export const getPublicProfileRequest = (userId) => {
+  return apiClient.get(`/users-utils/usuarios/${userId}/perfil_publico/`);
+};

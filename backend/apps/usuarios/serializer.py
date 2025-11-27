@@ -209,6 +209,54 @@ class UsuarioSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+class PerfilPublicoSerializer(serializers.ModelSerializer):
+    """
+    Serializador para perfiles públicos de usuarios.
+    Solo incluye información pública, sin datos sensibles como email o código estudiantil.
+    """
+    nombre_completo = serializers.SerializerMethodField()
+    rol_data = RolSerializer(read_only=True)
+    
+    class Meta:
+        model = Usuario
+        fields = [
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'nombre_completo',
+            'carrera',
+            'facultad',
+            'foto',
+            'rol_data',
+            'date_joined',  # Fecha de registro
+        ]
+        read_only_fields = fields
+    
+    def get_nombre_completo(self, obj):
+        """Retorna el nombre completo o username si no tiene nombre"""
+        nombre = f"{obj.first_name} {obj.last_name}".strip()
+        return nombre if nombre else obj.username
+    
+    def to_representation(self, instance):
+        """
+        Sobrescribe la representación para devolver solo la ruta relativa de la foto
+        en lugar de la URL absoluta (que puede contener backend:8000).
+        """
+        representation = super().to_representation(instance)
+        foto_url = representation.get('foto')
+        if foto_url:
+            # Si es una URL absoluta, extraer solo la ruta relativa
+            if isinstance(foto_url, str) and (foto_url.startswith('http://') or foto_url.startswith('https://')):
+                from urllib.parse import urlparse
+                parsed = urlparse(foto_url)
+                representation['foto'] = parsed.path
+            # Asegurar que comience con / si es una cadena y no está vacía
+            elif isinstance(foto_url, str) and foto_url and not foto_url.startswith('/'):
+                representation['foto'] = f'/{foto_url}'
+        return representation
+
+
 class EstadisticasUsuariosSerializer(serializers.ModelSerializer):
     """
     Serializador para estadísticas de usuarios.

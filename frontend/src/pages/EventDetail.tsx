@@ -945,9 +945,12 @@ const EventDetail = () => {
 
               <div className="pt-4 border-t">
                 <p className="text-sm text-muted-foreground mb-2">Organizado por:</p>
-                <p className="font-semibold">
+                <button
+                  onClick={() => evento.organizador?.id && navigate(isFromDashboard ? `/dashboard/user/${evento.organizador.id}` : `/user/${evento.organizador.id}`)}
+                  className="font-semibold hover:text-primary transition-colors cursor-pointer text-left"
+                >
                   {evento.organizador?.nombre_completo || evento.organizador?.username || 'Desconocido'}
-                </p>
+                </button>
               </div>
               
               {/* Mostrar código de confirmación al organizador */}
@@ -1023,9 +1026,12 @@ const EventDetail = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium truncate">
+                            <button
+                              onClick={() => navigate(isFromDashboard ? `/dashboard/user/${inscrito.id}` : `/user/${inscrito.id}`)}
+                              className="text-sm font-medium truncate hover:text-primary transition-colors cursor-pointer text-left"
+                            >
                               {inscrito.nombre_completo || inscrito.username}
-                            </p>
+                            </button>
                             {inscrito.asistencia_confirmada && (
                               <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
                             )}

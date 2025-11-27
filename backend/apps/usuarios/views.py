@@ -8,7 +8,7 @@ from .permissions import IsAdmin, IsOwnerOrAdmin
 from rest_framework.decorators import action
 from django.contrib.auth.models import AnonymousUser
 from .models import Usuario, Rol
-from .serializer import UsuarioSerializer, RolSerializer, EstadisticasUsuariosSerializer
+from .serializer import UsuarioSerializer, RolSerializer, EstadisticasUsuariosSerializer, PerfilPublicoSerializer
 from .tasks import send_email_user_created
 
 class RolViewSet(viewsets.ModelViewSet):
@@ -69,6 +69,17 @@ class UsuarioViewSet(viewsets.ModelViewSet):
 
     
     
+    @action(detail=True, methods=['get'], permission_classes=[AllowAny])
+    def perfil_publico(self, request, pk=None):
+        """
+        Endpoint para ver el perfil público de un usuario.
+        Accesible públicamente sin autenticación.
+        Solo muestra información pública, sin datos sensibles.
+        """
+        usuario = self.get_object()
+        serializer = PerfilPublicoSerializer(usuario)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
     def get_permissions(self):
         """
         Define permisos según la acción:
@@ -77,11 +88,15 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         - retrieve (Ver detalle): El propio usuario o un Admin.
         - update/partial_update (Editar): El propio usuario o un Admin.
         - destroy (Borrar): Solo Admins.
+        - perfil_publico: Abierto para cualquiera.
         """
         if self.action == 'create':
             return [AllowAny()]
 
         if self.action == 'estadisticas':
+            return [AllowAny()]
+        
+        if self.action == 'perfil_publico':
             return [AllowAny()]
 
         if self.action == 'list':
