@@ -5,13 +5,14 @@ import EventCard from "@/components/events/EventCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Users, Loader2, AlertCircle, History } from "lucide-react";
+import { Calendar, Users, Loader2, AlertCircle, History, Star } from "lucide-react";
 import { getImageUrl } from "@/utils/imageHelpers";
 import { 
   getMyCreatedEventsRequest,
   getAllSubscribedEventsRequest,
   getPastSubscribedEventsRequest,
-  getPastCreatedEventsRequest
+  getPastCreatedEventsRequest,
+  getFavoriteEventsRequest
 } from "@/api/events";
 
 // Interface para eventos del backend
@@ -36,6 +37,7 @@ interface EventoBackend {
     nombre_completo: string;
   };
   numero_inscritos?: number;
+  is_favorito?: boolean;
 }
 
 // Interface para eventos mapeados para EventCard
@@ -49,22 +51,32 @@ interface EventoMapeado {
   capacity: number;
   registered: number;
   image?: string;
+  organizadorId?: number;
+  descripcion?: string;
+  categoriaId?: number;
+  fechaInicio?: string;
+  fechaFin?: string;
+  isFavorito?: boolean;
 }
 
 const MisEventos = () => {
   const navigate = useNavigate();
   const [eventosInscritos, setEventosInscritos] = useState<EventoMapeado[]>([]);
   const [eventosCreados, setEventosCreados] = useState<EventoMapeado[]>([]);
+  const [eventosFavoritos, setEventosFavoritos] = useState<EventoMapeado[]>([]);
   const [eventosPasadosInscritos, setEventosPasadosInscritos] = useState<EventoMapeado[]>([]);
   const [eventosPasadosCreados, setEventosPasadosCreados] = useState<EventoMapeado[]>([]);
   const [loadingInscritos, setLoadingInscritos] = useState(true);
   const [loadingCreados, setLoadingCreados] = useState(true);
+  const [loadingFavoritos, setLoadingFavoritos] = useState(true);
   const [loadingPasadosInscritos, setLoadingPasadosInscritos] = useState(true);
   const [loadingPasadosCreados, setLoadingPasadosCreados] = useState(true);
   const [errorInscritos, setErrorInscritos] = useState<string | null>(null);
   const [errorCreados, setErrorCreados] = useState<string | null>(null);
+  const [errorFavoritos, setErrorFavoritos] = useState<string | null>(null);
   const [errorPasadosInscritos, setErrorPasadosInscritos] = useState<string | null>(null);
   const [errorPasadosCreados, setErrorPasadosCreados] = useState<string | null>(null);
+  const [showFavoritos, setShowFavoritos] = useState(false);
 
   // Formatear fecha: "2024-01-15T14:30:00Z" → "15 de enero, 2024"
   const formatDate = (dateString: string) => {
@@ -86,28 +98,25 @@ const MisEventos = () => {
   };
 
   // Función para mapear eventos del backend al formato de EventCard
-  const mapEventToCard = (evento: EventoBackend): EventoMapeado & {
-    organizadorId?: number;
-    descripcion?: string;
-    categoriaId?: number;
-    fechaInicio?: string;
-    fechaFin?: string;
-  } => ({
-    id: evento.id.toString(),
-    title: evento.titulo,
-    category: evento.categoria?.nombre || "Sin categoría",
-    date: formatDate(evento.fecha_inicio),
-    time: formatTime(evento.fecha_inicio),
-    location: evento.ubicacion,
-    capacity: evento.aforo,
-    registered: evento.numero_inscritos || 0,
-    image: getImageUrl(evento.foto),
-    organizadorId: evento.organizador?.id,
-    descripcion: evento.descripcion,
-    categoriaId: evento.categoria?.id,
-    fechaInicio: evento.fecha_inicio,
-    fechaFin: evento.fecha_fin,
-  });
+  const mapEventToCard = (evento: EventoBackend): EventoMapeado => {
+    return {
+      id: evento.id.toString(),
+      title: evento.titulo,
+      category: evento.categoria?.nombre || "Sin categoría",
+      date: formatDate(evento.fecha_inicio),
+      time: formatTime(evento.fecha_inicio),
+      location: evento.ubicacion,
+      capacity: evento.aforo,
+      registered: evento.numero_inscritos || 0,
+      image: getImageUrl(evento.foto),
+      organizadorId: evento.organizador?.id,
+      descripcion: evento.descripcion,
+      categoriaId: evento.categoria?.id,
+      fechaInicio: evento.fecha_inicio,
+      fechaFin: evento.fecha_fin,
+      isFavorito: evento.is_favorito === true, // Mapear explícitamente a boolean
+    };
+  };
 
   // Cargar eventos inscritos
   useEffect(() => {
@@ -227,7 +236,7 @@ const MisEventos = () => {
           </div>
 
           <Tabs defaultValue="inscritos" className="w-full">
-            <TabsList className="grid w-full max-w-2xl grid-cols-3 mb-6">
+            <TabsList className="grid w-full max-w-3xl grid-cols-4 mb-6">
               <TabsTrigger value="inscritos" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
                 Eventos Inscritos
@@ -243,6 +252,15 @@ const MisEventos = () => {
                 {eventosCreados.length > 0 && (
                   <span className="ml-1 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
                     {eventosCreados.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="favoritos" className="flex items-center gap-2">
+                <Star className="h-4 w-4" />
+                Favoritos
+                {eventosFavoritos.length > 0 && (
+                  <span className="ml-1 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded-full">
+                    {eventosFavoritos.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -314,6 +332,7 @@ const MisEventos = () => {
                           categoriaId={evento.categoriaId}
                           fechaInicio={evento.fechaInicio}
                           fechaFin={evento.fechaFin}
+                          isFavorito={evento.isFavorito}
                         />
                       ))}
                     </div>
@@ -379,6 +398,69 @@ const MisEventos = () => {
                           categoriaId={evento.categoriaId}
                           fechaInicio={evento.fechaInicio}
                           fechaFin={evento.fechaFin}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* Sección: Eventos Favoritos */}
+            <TabsContent value="favoritos" className="mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Star className="h-5 w-5 text-yellow-600" />
+                    Mis Eventos Favoritos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {loadingFavoritos ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="h-8 w-8 animate-spin text-yellow-600" />
+                      <span className="ml-2 text-gray-600">Cargando favoritos...</span>
+                    </div>
+                  ) : errorFavoritos ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                      <p className="text-red-600 mb-4">{errorFavoritos}</p>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => window.location.reload()}
+                      >
+                        Reintentar
+                      </Button>
+                    </div>
+                  ) : eventosFavoritos.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <Star className="h-16 w-16 text-gray-300 mb-4" />
+                      <p className="text-gray-600 text-lg mb-2">No tienes eventos favoritos</p>
+                      <p className="text-gray-500 text-sm">
+                        Marca eventos como favoritos para encontrarlos fácilmente
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {eventosFavoritos.map((evento) => (
+                        <EventCard
+                          key={evento.id}
+                          id={evento.id}
+                          title={evento.title}
+                          category={evento.category}
+                          date={evento.date}
+                          time={evento.time}
+                          location={evento.location}
+                          capacity={evento.capacity}
+                          registered={evento.registered}
+                          image={evento.image}
+                          skipAuthCheck={false}
+                          organizadorId={evento.organizadorId}
+                          descripcion={evento.descripcion}
+                          categoriaId={evento.categoriaId}
+                          fechaInicio={evento.fechaInicio}
+                          fechaFin={evento.fechaFin}
+                          isFavorito={evento.isFavorito}
                         />
                       ))}
                     </div>
@@ -481,6 +563,7 @@ const MisEventos = () => {
                                 categoriaId={evento.categoriaId}
                                 fechaInicio={evento.fechaInicio}
                                 fechaFin={evento.fechaFin}
+                                isFavorito={evento.isFavorito}
                               />
                             ))}
                           </div>

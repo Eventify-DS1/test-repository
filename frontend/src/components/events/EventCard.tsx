@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, MapPin, Users, CheckCircle2, Loader2, Copy } from "lucide-react";
+import { Calendar, MapPin, Users, CheckCircle2, Loader2, Copy, Star } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,9 @@ import eventPlaceholder from "@/assets/event-placeholder.jpg";
 import { 
   checkInscriptionRequest, 
   subscribeToEventRequest, 
-  unsubscribeFromEventRequest 
+  unsubscribeFromEventRequest,
+  addToFavoritesRequest,
+  removeFromFavoritesRequest
 } from "@/api/events";
 import { verifyTokenRequest } from "@/api/auth";
 import { getCurrentUserRequest } from "@/api/users";
@@ -30,6 +32,7 @@ interface EventCardProps {
   categoriaId?: number; // ID de la categoría
   fechaInicio?: string; // Fecha de inicio en formato ISO para plantilla
   fechaFin?: string; // Fecha de fin en formato ISO para plantilla
+  isFavorito?: boolean; // Indica si el evento es favorito
 }
 
 const EventCard = ({
@@ -48,6 +51,7 @@ const EventCard = ({
   categoriaId,
   fechaInicio,
   fechaFin,
+  isFavorito = false,
 }: EventCardProps) => {
   const location_hook = useLocation();
   const navigate = useNavigate();
@@ -59,6 +63,8 @@ const EventCard = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [favorito, setFavorito] = useState(isFavorito);
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
   
   // Detectar si estamos en el dashboard o en la vista pública
   const isFromDashboard = location_hook.pathname.startsWith('/dashboard');
@@ -67,6 +73,11 @@ const EventCard = ({
   const detailRoute = isFromDashboard ? `/dashboard/event/${id}` : `/event/${id}`;
   
   const spotsLeft = capacity - registered;
+  
+  // Actualizar estado de favorito cuando cambia la prop isFavorito
+  useEffect(() => {
+    setFavorito(isFavorito);
+  }, [isFavorito]);
   
   // Verificar autenticación y estado de inscripción (solo si no se omite)
   useEffect(() => {
@@ -121,7 +132,7 @@ const EventCard = ({
     };
     
     checkAuthAndSubscription();
-  }, [id, skipAuthCheck, organizadorId]);
+  }, [id, skipAuthCheck, organizadorId, isFavorito]);
   
   const handleSubscribe = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -214,6 +225,51 @@ const EventCard = ({
     // Navegar a CreateEvent con los datos en el state
     navigate('/dashboard/create', { state: { templateData } });
   };
+
+  const handleToggleFavorite = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!isAuthenticated) {
+      toast({
+        title: "Debes iniciar sesión",
+        description: "Necesitas estar autenticado para marcar eventos como favoritos.",
+        variant: "default",
+      });
+      navigate('/login');
+      return;
+    }
+    
+    setIsTogglingFavorite(true);
+    try {
+      if (favorito) {
+        await removeFromFavoritesRequest(parseInt(id));
+        setFavorito(false);
+        toast({
+          title: "Eliminado de favoritos",
+          description: `"${title} ha sido eliminado de tus favoritos.`,
+          variant: "default",
+        });
+      } else {
+        await addToFavoritesRequest(parseInt(id));
+        setFavorito(true);
+        toast({
+          title: "Agregado a favoritos",
+          description: `"${title}" ha sido agregado a tus favoritos.`,
+          variant: "default",
+        });
+      }
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Error al actualizar favoritos';
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsTogglingFavorite(false);
+    }
+  };
   
   const getCategoryColor = (cat: string) => {
     switch (cat.toLowerCase()) {
@@ -241,6 +297,27 @@ const EventCard = ({
         <Badge className={`absolute top-3 right-3 ${getCategoryColor(category)}`}>
           {category}
         </Badge>
+        {isAuthenticated ? (
+          <button
+            onClick={handleToggleFavorite}
+            disabled={isTogglingFavorite}
+            className={`absolute top-3 left-3 p-2 rounded-full transition-all ${
+              favorito
+                ? "bg-yellow-400 hover:bg-yellow-500 text-yellow-900"
+                : "bg-white/80 hover:bg-white text-gray-600"
+            }`}
+            title={favorito ? "Quitar de favoritos" : "Agregar a favoritos"}
+          >
+            <Star className={`h-4 w-4 ${favorito ? "fill-current text-yellow-900" : "text-gray-600"}`} />
+          </button>
+        ) : favorito ? (
+          <div
+            className="absolute top-3 left-3 p-2 rounded-full bg-yellow-400"
+            title="Evento favorito"
+          >
+            <Star className="h-4 w-4 fill-current text-yellow-900" />
+          </div>
+        ) : null}
       </div>
       
       <CardHeader>

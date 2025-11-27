@@ -397,13 +397,17 @@ class EventoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def eventos_inscritos(self, request):
         """
-        Retorna todos los eventos donde el usuario está inscrito (sin filtrar por fecha).
-        Útil para mostrar todos los eventos inscritos del usuario.
+        Retorna los eventos donde el usuario está inscrito que aún no han finalizado.
+        Eventos donde fecha_fin >= ahora.
         """
-        # Obtener eventos donde el usuario está inscrito
+        from django.utils import timezone
+        ahora = timezone.now()
+        
+        # Obtener eventos donde el usuario está inscrito y que aún no han finalizado
         inscripciones = Inscripcion.objects.filter(
-            usuario=request.user
-        ).select_related('evento').order_by('-evento__fecha_inicio')
+            usuario=request.user,
+            evento__fecha_fin__gte=ahora
+        ).select_related('evento').order_by('evento__fecha_inicio')
         
         eventos_inscritos = [inscripcion.evento for inscripcion in inscripciones]
         
@@ -440,15 +444,17 @@ class EventoViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def eventos_creados(self, request):
         """
-        Retorna los eventos creados por el usuario autenticado (donde es organizador).
-        Incluye todos los eventos creados, ordenados por fecha_inicio (más recientes primero).
+        Retorna los eventos creados por el usuario autenticado (donde es organizador)
+        que aún no han finalizado. Eventos donde fecha_fin >= ahora.
         """
         from django.utils import timezone
+        ahora = timezone.now()
         
-        # Obtener eventos donde el usuario es organizador
+        # Obtener eventos donde el usuario es organizador y que aún no han finalizado
         eventos_creados = Evento.objects.filter(
-            organizador=request.user
-        ).order_by('-fecha_inicio')
+            organizador=request.user,
+            fecha_fin__gte=ahora
+        ).order_by('fecha_inicio')
         
         serializer = self.get_serializer(eventos_creados, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -494,6 +500,71 @@ class EventoViewSet(viewsets.ModelViewSet):
         ).order_by('-fecha_fin')
         
         serializer = self.get_serializer(eventos_pasados, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post', 'delete'], permission_classes=[IsAuthenticated])
+    def toggle_favorito(self, request, pk=None):
+        """
+        Marca o desmarca un evento como favorito.
+        POST: marca como favorito
+        DELETE: desmarca como favorito
+        """
+        from .models import Favorito
+        
+        evento = self.get_object()
+        
+        if request.method == 'POST':
+            # Marcar como favorito
+            favorito, created = Favorito.objects.get_or_create(
+                usuario=request.user,
+                evento=evento
+            )
+            if created:
+                return Response(
+                    {'message': 'Evento agregado a favoritos', 'is_favorito': True},
+                    status=status.HTTP_201_CREATED
+                )
+            else:
+                return Response(
+                    {'message': 'El evento ya está en favoritos', 'is_favorito': True},
+                    status=status.HTTP_200_OK
+                )
+        else:
+            # DELETE: Desmarcar como favorito
+            try:
+                favorito = Favorito.objects.get(usuario=request.user, evento=evento)
+                favorito.delete()
+                return Response(
+                    {'message': 'Evento eliminado de favoritos', 'is_favorito': False},
+                    status=status.HTTP_200_OK
+                )
+            except Favorito.DoesNotExist:
+                return Response(
+                    {'message': 'El evento no está en favoritos', 'is_favorito': False},
+                    status=status.HTTP_200_OK
+                )
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eventos_favoritos(self, request):
+        """
+        Retorna los eventos marcados como favoritos por el usuario autenticado
+        que aún no han finalizado.
+        """
+        from django.utils import timezone
+        from .models import Favorito
+        
+        ahora = timezone.now()
+        
+        # Obtener eventos favoritos que aún no han finalizado
+        favoritos = Favorito.objects.filter(
+            usuario=request.user,
+            evento__fecha_fin__gte=ahora
+        ).select_related('evento').order_by('evento__fecha_inicio')
+        
+        eventos_favoritos = [favorito.evento for favorito in favoritos]
+        
+        # Pasar el request en el contexto para que get_is_favorito funcione correctamente
+        serializer = self.get_serializer(eventos_favoritos, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
         
     

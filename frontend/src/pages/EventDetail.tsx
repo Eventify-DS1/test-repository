@@ -2,7 +2,7 @@ import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star, Download } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/Header";
@@ -14,7 +14,9 @@ import {
   checkInscriptionRequest, 
   subscribeToEventRequest, 
   unsubscribeFromEventRequest,
-  confirmAttendanceRequest
+  confirmAttendanceRequest,
+  addToFavoritesRequest,
+  removeFromFavoritesRequest
 } from "@/api/events";
 import { getImageUrl } from "@/utils/imageHelpers";
 import { getCurrentUserRequest } from "@/api/users";
@@ -22,6 +24,7 @@ import { deleteEventRequest } from "@/api/events";
 import { getEventReviewsRequest } from "@/api/reviews";
 import ReviewCard from "@/components/events/ReviewCard";
 import { useQuery } from "@tanstack/react-query";
+import jsPDF from "jspdf";
 
 
 // Interface para los datos del backend
@@ -39,6 +42,9 @@ interface UsuarioInscrito {
   first_name: string;
   last_name: string;
   nombre_completo: string;
+  email?: string | null;
+  codigo_estudiantil?: string | null;
+  asistencia_confirmada?: boolean;
 }
 
 interface Evento {
@@ -58,6 +64,7 @@ interface Evento {
   numero_inscritos: number;
   inscritos: UsuarioInscrito[];
   codigo_confirmacion?: string | null;
+  is_favorito?: boolean;
 }
 
 const EventDetail = () => {
@@ -75,7 +82,9 @@ const EventDetail = () => {
   const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [codigoConfirmacion, setCodigoConfirmacion] = useState("");
-  const [isConfirming, setIsConfirming] = useState(false); 
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isFavorito, setIsFavorito] = useState(false);
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false); 
 
   // Detectar si viene del dashboard o es vista pública
   const isFromDashboard = location.pathname.startsWith('/dashboard');
@@ -162,6 +171,8 @@ const EventDetail = () => {
         setLoading(true);
         const response = await getEventoByIdRequest(id);
         setEvento(response.data);
+        setIsFavorito(response.data.is_favorito || false);
+        setIsFavorito(response.data.is_favorito || false);
       } catch (error: unknown) {
         console.error('Error al cargar evento:', error);
         setError("No se pudo cargar el evento");
@@ -253,6 +264,7 @@ const EventDetail = () => {
       if (id) {
         const response = await getEventoByIdRequest(id);
         setEvento(response.data);
+        setIsFavorito(response.data.is_favorito || false);
         // Recargar estado de inscripción
         const checkResponse = await checkInscriptionRequest(parseInt(id));
         setIsSubscribed(checkResponse.data.esta_inscrito);
@@ -296,6 +308,7 @@ const EventDetail = () => {
       if (id) {
         const response = await getEventoByIdRequest(id);
         setEvento(response.data);
+        setIsFavorito(response.data.is_favorito || false);
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || 'Error al desinscribirse del evento';
@@ -333,6 +346,7 @@ const EventDetail = () => {
       if (id) {
         const response = await getEventoByIdRequest(id);
         setEvento(response.data);
+        setIsFavorito(response.data.is_favorito || false);
         const checkResponse = await checkInscriptionRequest(parseInt(id));
         setAsistenciaConfirmada(checkResponse.data.asistencia_confirmada || false);
       }
@@ -409,6 +423,158 @@ const EventDetail = () => {
       }
     };
 
+    const handleToggleFavorite = async () => {
+      if (!id || !evento) return;
+      
+      setIsTogglingFavorite(true);
+      try {
+        if (isFavorito) {
+          await removeFromFavoritesRequest(parseInt(id));
+          setIsFavorito(false);
+          toast({
+            title: "Eliminado de favoritos",
+            description: "El evento ha sido eliminado de tus favoritos.",
+            variant: "default",
+          });
+        } else {
+          await addToFavoritesRequest(parseInt(id));
+          setIsFavorito(true);
+          toast({
+            title: "Agregado a favoritos",
+            description: "El evento ha sido agregado a tus favoritos.",
+            variant: "default",
+          });
+        }
+        // Actualizar el evento para reflejar el cambio
+        const response = await getEventoByIdRequest(id);
+        setEvento(response.data);
+        setIsFavorito(response.data.is_favorito || false);
+      } catch (error: any) {
+        const errorMessage = error.response?.data?.message || 'Error al actualizar favoritos';
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } finally {
+        setIsTogglingFavorite(false);
+      }
+    };
+
+    const handleExportPDF = () => {
+      if (!evento || !evento.inscritos || evento.inscritos.length === 0) {
+        toast({
+          title: "No hay participantes",
+          description: "No hay participantes inscritos para exportar.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const doc = new jsPDF();
+      
+      // Configuración de fuente y colores
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 20;
+      const lineHeight = 8;
+      let yPosition = margin;
+
+      // Título del documento
+      doc.setFontSize(18);
+      doc.setFont("helvetica", "bold");
+      doc.text("Lista de Participantes", pageWidth / 2, yPosition, { align: "center" });
+      yPosition += 10;
+
+      // Información del evento
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Evento:", margin, yPosition);
+      yPosition += lineHeight;
+      doc.setFont("helvetica", "normal");
+      doc.text(evento.titulo, margin, yPosition);
+      yPosition += lineHeight;
+      
+      doc.setFont("helvetica", "bold");
+      doc.text("Fecha:", margin, yPosition);
+      yPosition += lineHeight;
+      doc.setFont("helvetica", "normal");
+      doc.text(formatDate(evento.fecha_inicio), margin, yPosition);
+      yPosition += lineHeight;
+      
+      doc.setFont("helvetica", "bold");
+      doc.text("Ubicación:", margin, yPosition);
+      yPosition += lineHeight;
+      doc.setFont("helvetica", "normal");
+      doc.text(evento.ubicacion, margin, yPosition);
+      yPosition += 15;
+
+      // Encabezados de la tabla
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      const colWidths = [60, 50, 50, 30]; // Anchos de columnas
+      const headers = ["Nombre", "Email", "Código", "Username"];
+      let xPosition = margin;
+      
+      headers.forEach((header, index) => {
+        doc.text(header, xPosition, yPosition);
+        xPosition += colWidths[index];
+      });
+      yPosition += lineHeight + 2;
+
+      // Línea separadora
+      doc.setLineWidth(0.5);
+      doc.line(margin, yPosition, pageWidth - margin, yPosition);
+      yPosition += 5;
+
+      // Datos de los participantes
+      doc.setFont("helvetica", "normal");
+      evento.inscritos.forEach((participante, index) => {
+        // Verificar si necesitamos una nueva página
+        if (yPosition > pageHeight - 30) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        const nombre = participante.nombre_completo || participante.username || "N/A";
+        const email = participante.email || "N/A";
+        const codigo = participante.codigo_estudiantil || "N/A";
+        const username = participante.username || "N/A";
+
+        xPosition = margin;
+        doc.text(nombre.substring(0, 25), xPosition, yPosition); // Limitar longitud
+        xPosition += colWidths[0];
+        doc.text(email.substring(0, 20), xPosition, yPosition);
+        xPosition += colWidths[1];
+        doc.text(codigo.substring(0, 15), xPosition, yPosition);
+        xPosition += colWidths[2];
+        doc.text(username.substring(0, 15), xPosition, yPosition);
+        
+        yPosition += lineHeight + 2;
+      });
+
+      // Pie de página
+      yPosition = pageHeight - 15;
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "italic");
+      doc.text(
+        `Total de participantes: ${evento.inscritos.length} | Generado el ${new Date().toLocaleDateString('es-ES')}`,
+        pageWidth / 2,
+        yPosition,
+        { align: "center" }
+      );
+
+      // Guardar el PDF
+      const fileName = `participantes_${evento.titulo.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+
+      toast({
+        title: "PDF exportado",
+        description: `Se ha exportado la lista de ${evento.inscritos.length} participantes.`,
+        variant: "default",
+      });
+    };
+
 
 
     return (
@@ -432,8 +598,24 @@ const EventDetail = () => {
 
             <div>
               <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h1 className="text-4xl font-bold mb-3">{evento.titulo}</h1>
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-3">
+                    <h1 className="text-4xl font-bold">{evento.titulo}</h1>
+                    {isAuthenticated && (
+                      <button
+                        onClick={handleToggleFavorite}
+                        disabled={isTogglingFavorite}
+                        className={`p-2 rounded-full transition-all ${
+                          isFavorito
+                            ? "bg-yellow-400 hover:bg-yellow-500 text-yellow-900"
+                            : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                        }`}
+                        title={isFavorito ? "Quitar de favoritos" : "Agregar a favoritos"}
+                      >
+                        <Star className={`h-5 w-5 ${isFavorito ? "fill-current" : ""}`} />
+                      </button>
+                    )}
+                  </div>
                   <Badge className="bg-primary/20 text-primary text-sm">
                     {evento.categoria?.nombre || "Sin categoría"}
                   </Badge>
@@ -545,7 +727,7 @@ const EventDetail = () => {
                 <div className="flex items-center gap-3">
                   <Users className="h-5 w-5 text-primary" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Asistentes confirmados</p>
+                    <p className="text-sm text-muted-foreground">Asistentes inscritos</p>
                     <p className="font-medium">
                       {registered} / {evento.aforo} personas
                     </p>
@@ -743,22 +925,48 @@ const EventDetail = () => {
 
               {evento.inscritos && evento.inscritos.length > 0 ? (
                 <div className="pt-4 border-t">
-                  <p className="text-sm font-semibold mb-3">
-                    Asistentes inscritos ({evento.inscritos.length})
-                  </p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-sm font-semibold">
+                      Asistentes inscritos ({evento.inscritos.length})
+                    </p>
+                    {isOwner && (
+                      <Button
+                        onClick={handleExportPDF}
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3"
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        Exportar PDF
+                      </Button>
+                    )}
+                  </div>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
                     {evento.inscritos.map((inscrito) => (
                       <div
                         key={inscrito.id}
-                        className="flex items-center gap-3 p-2 rounded-lg bg-muted/50 hover:bg-muted transition-base"
+                        className={`flex items-center gap-3 p-2 rounded-lg transition-base ${
+                          inscrito.asistencia_confirmada
+                            ? "bg-green-50 border border-green-200 hover:bg-green-100"
+                            : "bg-muted/50 hover:bg-muted"
+                        }`}
                       >
-                        <div className="h-8 w-8 rounded-full gradient-primary flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0 ${
+                          inscrito.asistencia_confirmada
+                            ? "bg-green-600"
+                            : "gradient-primary"
+                        }`}>
                           {inscrito.nombre_completo?.charAt(0).toUpperCase() || inscrito.username?.charAt(0).toUpperCase() || 'U'}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">
-                            {inscrito.nombre_completo || inscrito.username}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium truncate">
+                              {inscrito.nombre_completo || inscrito.username}
+                            </p>
+                            {inscrito.asistencia_confirmada && (
+                              <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+                            )}
+                          </div>
                           {inscrito.nombre_completo && (
                             <p className="text-xs text-muted-foreground truncate">
                               @{inscrito.username}

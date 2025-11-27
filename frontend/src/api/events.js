@@ -111,3 +111,18 @@ export const getPastCreatedEventsRequest = () => {
 export const getAllSubscribedEventsRequest = () => {
     return apiClient.get('/events-utils/eventos/eventos_inscritos/');
 };
+
+// Marcar evento como favorito
+export const addToFavoritesRequest = (eventId) => {
+    return apiClient.post(`/events-utils/eventos/${eventId}/toggle_favorito/`);
+};
+
+// Desmarcar evento como favorito
+export const removeFromFavoritesRequest = (eventId) => {
+    return apiClient.delete(`/events-utils/eventos/${eventId}/toggle_favorito/`);
+};
+
+// Obtener eventos favoritos del usuario
+export const getFavoriteEventsRequest = () => {
+    return apiClient.get('/events-utils/eventos/eventos_favoritos/');
+};

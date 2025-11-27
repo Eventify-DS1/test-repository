@@ -40,6 +40,7 @@ interface Evento {
   } | null;
   organizador: Organizador;
   numero_inscritos?: number;
+  is_favorito?: boolean;
 }
 
 interface Categoria {
@@ -401,6 +402,12 @@ const Search = () => {
                     capacity={evento.aforo}
                     registered={evento.numero_inscritos || 0}
                     image={getImageUrl(evento.foto)}
+                    isFavorito={evento.is_favorito === true}
+                    organizadorId={evento.organizador?.id}
+                    descripcion={evento.descripcion}
+                    categoriaId={evento.categoria?.id}
+                    fechaInicio={evento.fecha_inicio}
+                    fechaFin={evento.fecha_fin}
                   />
                 </div>
               ))}

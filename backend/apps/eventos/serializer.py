@@ -48,18 +48,41 @@ class OrganizadorSerializer(serializers.ModelSerializer):
 class UsuarioInscritoSerializer(serializers.ModelSerializer):
     """
     Serializador simplificado para mostrar información de usuarios inscritos.
+    Incluye email y codigo_estudiantil solo si el usuario que solicita es el organizador del evento.
     """
     nombre_completo = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+    codigo_estudiantil = serializers.SerializerMethodField()
     
     class Meta:
         model = Usuario
-        fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo']
-        read_only_fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo']
+        fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo', 'email', 'codigo_estudiantil']
+        read_only_fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo', 'email', 'codigo_estudiantil']
     
     def get_nombre_completo(self, obj):
         """Retorna el nombre completo o username si no tiene nombre"""
         nombre = f"{obj.first_name} {obj.last_name}".strip()
         return nombre if nombre else obj.username
+    
+    def get_email(self, obj):
+        """Retorna el email solo si el usuario que solicita es el organizador"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            # Verificar si el usuario es el organizador del evento
+            evento = self.context.get('evento')
+            if evento and evento.organizador == request.user:
+                return obj.email
+        return None
+    
+    def get_codigo_estudiantil(self, obj):
+        """Retorna el código estudiantil solo si el usuario que solicita es el organizador"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            # Verificar si el usuario es el organizador del evento
+            evento = self.context.get('evento')
+            if evento and evento.organizador == request.user:
+                return obj.codigo_estudiantil
+        return None
 
 
 class EventoSerializer(serializers.ModelSerializer):
@@ -90,6 +113,9 @@ class EventoSerializer(serializers.ModelSerializer):
     
     # Código de confirmación (solo visible para el organizador)
     codigo_confirmacion = serializers.SerializerMethodField()
+    
+    # Indica si el evento está marcado como favorito por el usuario autenticado
+    is_favorito = serializers.SerializerMethodField()
 
     class Meta:
         model = Evento
@@ -108,6 +134,7 @@ class EventoSerializer(serializers.ModelSerializer):
             'numero_inscritos',  # Número total de inscritos
             'inscritos',  # Lista de usuarios inscritos con nombres
             'codigo_confirmacion',  # Código de confirmación (solo para organizador)
+            'is_favorito',  # Indica si el evento es favorito del usuario
         ]
     
     def to_representation(self, instance):
@@ -148,13 +175,27 @@ class EventoSerializer(serializers.ModelSerializer):
             return 0
     
     def get_inscritos(self, obj):
-        """Retorna la lista de usuarios inscritos con sus nombres"""
+        """Retorna la lista de usuarios inscritos con sus nombres y estado de confirmación"""
         # Verificar que el objeto esté guardado antes de acceder a relaciones
         if not obj.pk:
             return []
         try:
             inscripciones = obj.inscripciones.select_related('usuario').all()
-            return UsuarioInscritoSerializer([inscripcion.usuario for inscripcion in inscripciones], many=True).data
+            # Pasar el contexto con el request y el evento para que el serializer pueda verificar si es organizador
+            request = self.context.get('request')
+            
+            # Crear lista con información del usuario y estado de confirmación
+            inscritos_data = []
+            for inscripcion in inscripciones:
+                usuario_data = UsuarioInscritoSerializer(
+                    inscripcion.usuario,
+                    context={'request': request, 'evento': obj}
+                ).data
+                # Agregar información de la inscripción
+                usuario_data['asistencia_confirmada'] = inscripcion.asistencia_confirmada
+                inscritos_data.append(usuario_data)
+            
+            return inscritos_data
         except Exception:
             return []
     
@@ -165,6 +206,14 @@ class EventoSerializer(serializers.ModelSerializer):
             if obj.organizador == request.user:
                 return obj.codigo_confirmacion
         return None
+    
+    def get_is_favorito(self, obj):
+        """Retorna True si el evento está marcado como favorito por el usuario autenticado"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            from .models import Favorito
+            return Favorito.objects.filter(usuario=request.user, evento=obj).exists()
+        return False
 
     # === Validaciones personalizadas ===
     def validate(self, attrs):

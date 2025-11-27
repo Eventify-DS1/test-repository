@@ -133,3 +133,30 @@ class Reseña(models.Model):
     def __str__(self):
         return f"Reseña de {self.usuario} en {self.evento}"
 
+class Favorito(models.Model):
+    """
+    Modelo para almacenar eventos marcados como favoritos por los usuarios.
+    """
+    usuario = models.ForeignKey(
+        Usuario,
+        on_delete=models.CASCADE,
+        related_name='favoritos'
+    )
+    evento = models.ForeignKey(
+        Evento,
+        on_delete=models.CASCADE,
+        related_name='favoritos'
+    )
+    fecha_agregado = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['usuario', 'evento'], name='unique_favorito')
+        ]
+        verbose_name = "Favorito"
+        verbose_name_plural = "Favoritos"
+        ordering = ['-fecha_agregado']
+
+    def __str__(self):
+        return f"{self.usuario} - {self.evento}"
+
