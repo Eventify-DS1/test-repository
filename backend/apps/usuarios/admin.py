@@ -30,6 +30,24 @@ class UsuarioAdmin(UserAdmin):
             'fields': ('email', 'carrera', 'facultad', 'codigo_estudiantil', 'rol')
         }),
     )
+    
+    def save_model(self, request, obj, form, change):
+        """
+        Override del método save_model para asignar automáticamente
+        is_staff y is_superuser cuando el rol es admin.
+        """
+        # Si el rol es admin, hacer staff y superuser automáticamente
+        if obj.rol and obj.rol.nombre.lower() in ['admin', 'administrador']:
+            obj.is_staff = True
+            obj.is_superuser = True
+        else:
+            # Si el rol no es admin, quitar permisos de staff/superuser
+            # (solo si no es el superusuario inicial)
+            if not (obj.pk == 1 or obj.username == 'admin'):
+                obj.is_staff = False
+                obj.is_superuser = False
+        
+        super().save_model(request, obj, form, change)
 
 @admin.register(MFACode)
 class MFACodeAdmin(admin.ModelAdmin):

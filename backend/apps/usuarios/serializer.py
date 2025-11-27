@@ -109,16 +109,20 @@ class UsuarioSerializer(serializers.ModelSerializer):
             'rol',
             'rol_data',
             'password',
-            'password2'
+            'password2',
+            'is_staff',
+            'is_superuser',
         ]
         extra_kwargs = {
-            'username': {'required': True},  # El username no se puede cambiar
+            'username': {'required': True},
             'first_name': {'required': False, 'allow_blank': True},
             'last_name': {'required': False, 'allow_blank': True},
             'carrera': {'required': False, 'allow_blank': True},
             'facultad': {'required': False, 'allow_blank': True},
             'codigo_estudiantil': {'required': False, 'allow_blank': True},
             'email': {'required': False, 'allow_blank': True},
+            'is_staff': {'read_only': True},
+            'is_superuser': {'read_only': True},  
         }
 
     # === Validaciones personalizadas ===
@@ -167,8 +171,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """
         Crea un nuevo usuario asegurando el hash de la contraseña.
-        - Se elimina 'password2' ya que no se guarda en el modelo.
-        - Se usa set_password() para encriptar la contraseña antes de guardar.
+        Si el rol es 'admin' o 'administrador', automáticamente se hace staff y superuser.
         """
         validated_data.pop('password2', None)
         password = validated_data.pop('password', None)
@@ -176,8 +179,16 @@ class UsuarioSerializer(serializers.ModelSerializer):
         if not password:
             raise serializers.ValidationError({"password": "La contraseña es obligatoria al crear un usuario."})
 
+        # Extraer el rol antes de crear el usuario
+        rol = validated_data.get('rol')
+        
         user = Usuario(**validated_data)
         user.set_password(password)
+
+        if rol and rol.nombre.lower() in ['admin', 'administrador']:
+            user.is_staff = True
+            user.is_superuser = True
+        
         user.save()
         return user
 
@@ -186,18 +197,34 @@ class UsuarioSerializer(serializers.ModelSerializer):
         """
         Permite actualizar un usuario:
         - Si incluye contraseña, se re-encripta con set_password().
+        - Si se cambia el rol a admin, se actualiza is_staff y is_superuser.
         - Los demás atributos se actualizan de forma dinámica con setattr().
         """
         password = validated_data.pop('password', None)
         validated_data.pop('password2', None)
+
+        # Extraer el rol si está siendo actualizado
+        rol = validated_data.get('rol')
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
         if password:
             instance.set_password(password)
+        
+        # 🔥 NUEVO: Si el rol cambia a admin, actualizar permisos
+        if rol:
+            if rol.nombre.lower() in ['admin', 'administrador']:
+                instance.is_staff = True
+                instance.is_superuser = True
+            else:
+                # Si el rol ya no es admin, quitar permisos de staff/superuser
+                instance.is_staff = False
+                instance.is_superuser = False
+        
         instance.save()
         return instance
+
 
 class EstadisticasUsuariosSerializer(serializers.ModelSerializer):
     """

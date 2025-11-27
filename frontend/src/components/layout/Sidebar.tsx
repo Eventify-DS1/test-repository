@@ -20,7 +20,7 @@ const menuItems: MenuItem[] = [
   { icon: Search, label: "Buscar eventos", path: "/dashboard/search" },
   { icon: Calendar, label: "Calendario", path: "/dashboard/calendario" },
   { icon: Plus, label: "Crear evento", path: "/dashboard/create" },
-  { icon: FileText, label: "Mis reportes", path: "/dashboard/reports", disabled: true },
+  { icon: FileText, label: "Mis reportes", path: "/dashboard/reports"},
   { icon: Bell, label: "Notificaciones", path: "/dashboard/notifications" },
   { icon: Key, label: "Confirmar asistencia", path: "/dashboard/confirmar-asistencia"},
   { icon: Star, label: "Calificar eventos", path: "/dashboard/rate"},

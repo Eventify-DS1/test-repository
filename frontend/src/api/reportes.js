@@ -1,48 +1,123 @@
 import apiClient from "./api";
-// === CONSULTAS === //
 
-export function getEventosPorMes() {
-  return apiClient.get('/reportes/eventos-por-mes/');
-}
 
-export function getEventosPorUsuario() {
-  return apiClient.get('/reportes/eventos-por-usuario/');
-}
+/**
+ * Obtiene eventos agrupados por mes
+ * @param {Object} params - Parámetros opcionales { inicio, fin }
+ * @returns {Promise} Promesa con los datos
+ */
+export const getEventosPorMes = (params = {}) => {
+  return apiClient.get("/reportes/eventos-por-mes/", { params });
+};
 
-export function getEventosPorCategoria() {
-  return apiClient.get('/reportes/eventos-por-categoria/');
-}
+/**
+ * Obtiene eventos agrupados por usuario organizador
+ * @returns {Promise} Promesa con los datos
+ */
+export const getEventosPorUsuario = () => {
+  return apiClient.get("/reportes/eventos-por-usuarios/");
+};
 
-// === EXPORTACIONES === //
+/**
+ * Obtiene eventos agrupados por categoría
+ * @returns {Promise} Promesa con los datos
+ */
+export const getEventosPorCategoria = () => {
+  return apiClient.get("/reportes/eventos-por-categoria/");
+};
 
-export function exportCSV(tipo) {
-  return apiClient.get(`/reportes/${tipo}/export/csv/`, {
-    responseType: 'blob'
-  }).then(downloadBlob('reporte.csv'));
-}
+/**
+ * Obtiene eventos agrupados por ubicación
+ * @returns {Promise} Promesa con los datos
+ */
+export const getEventosPorLugar = () => {
+  return apiClient.get("/reportes/eventos-por-lugar/");
+};
 
-export function exportXLSX(tipo) {
-  return apiClient.get(`/reportes/${tipo}/export/xlsx/`, {
-    responseType: 'blob'
-  }).then(downloadBlob('reporte.xlsx'));
-}
+/**
+ * Obtiene eventos agrupados por estado (futuro, en curso, finalizado, lleno)
+ * @returns {Promise} Promesa con los datos
+ */
+export const getEventosPorEstado = () => {
+  return apiClient.get("/reportes/eventos-por-estado/");
+};
 
-export function exportPDF(tipo) {
-  return apiClient.get(`/reportes/${tipo}/export/pdf/`, {
-    responseType: 'blob'
-  }).then(downloadBlob('reporte.pdf'));
-}
+// ============================================================================
+// FUNCIONES DE EXPORTACIÓN
+// ============================================================================
 
-// === UTILIDAD PARA DESCARGAR === //
+/**
+ * Descarga un archivo desde una URL blob
+ * @param {Blob} blob - Blob del archivo
+ * @param {String} filename - Nombre del archivo
+ */
+const descargarArchivo = (blob, filename) => {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.URL.revokeObjectURL(url);
+};
 
-function downloadBlob(filename) {
-  return (response) => {
-    const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  };
-}
+/**
+ * Exporta datos a CSV
+ * @param {String} tipo - Tipo de reporte: mes, usuarios, categorias, lugares, global
+ * @returns {Promise}
+ */
+export const exportCSV = async (tipo = "global") => {
+  try {
+    const response = await apiClient.get("/reportes/export/csv/", {
+      params: { tipo },
+      responseType: "blob",
+    });
+    
+    descargarArchivo(response.data, `reporte_${tipo}.csv`);
+    return response;
+  } catch (error) {
+    console.error("Error al exportar CSV:", error);
+    throw error;
+  }
+};
+
+/**
+ * Exporta datos a Excel (XLSX)
+ * @param {String} tipo - Tipo de reporte: mes, usuarios, categorias, lugares, global
+ * @returns {Promise}
+ */
+export const exportXLSX = async (tipo = "global") => {
+  try {
+    const response = await apiClient.get("/reportes/export/xlsx/", {
+      params: { tipo },
+      responseType: "blob",
+    });
+    
+    descargarArchivo(response.data, `reporte_${tipo}.xlsx`);
+    return response;
+  } catch (error) {
+    console.error("Error al exportar XLSX:", error);
+    throw error;
+  }
+};
+
+/**
+ * Exporta datos a PDF
+ * @param {String} tipo - Tipo de reporte: mes, usuarios, categorias, lugares, global
+ * @returns {Promise}
+ */
+export const exportPDF = async (tipo = "global") => {
+  try {
+    const response = await apiClient.get("/reportes/export/pdf/", {
+      params: { tipo },
+      responseType: "blob",
+    });
+    
+    descargarArchivo(response.data, `reporte_${tipo}.pdf`);
+    return response;
+  } catch (error) {
+    console.error("Error al exportar PDF:", error);
+    throw error;
+  }
+};
