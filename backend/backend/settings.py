@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env()
 PROJECT_ROOT = BASE_DIR.parent
-environ.Env.read_env(os.path.join(PROJECT_ROOT, '.env'))
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 SECRET_KEY = os.environ.get('SECRET_KEY') or env('SECRET_KEY', default='django-insecure-temporary-key-change-in-production')
 DEBUG = env.bool('DEBUG', default=False) #convierte la cadena "True" o "False" del .env en un valor booleano real.
@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     'apps.usuarios',
     'apps.eventos',
     'apps.notificaciones',
+    'apps.reportes',
 ]
 
 MIDDLEWARE = [
@@ -111,12 +112,14 @@ ASGI_APPLICATION = 'backend.asgi.application'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 DATABASES = {
-    'default': dj_database_url.config(
-        default=env('DATABASE_URL'),
+    'default': dj_database_url.parse(
+        env('DATABASE_URL'),
         conn_max_age=600,
-        conn_health_checks=True,  
+        ssl_require=True
     )
 }
+
+
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
