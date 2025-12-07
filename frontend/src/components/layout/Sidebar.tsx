@@ -12,7 +12,7 @@ type MenuItem = {
   label: string;
   path: string;
   disabled?: boolean;
-  adminOnly?: boolean; // Nueva propiedad para items solo de admin
+  adminOnly?: boolean;
 };
 
 const menuItems: MenuItem[] = [
@@ -21,7 +21,7 @@ const menuItems: MenuItem[] = [
   { icon: Search, label: "Buscar eventos", path: "/dashboard/search" },
   { icon: Calendar, label: "Calendario", path: "/dashboard/calendario" },
   { icon: Plus, label: "Crear evento", path: "/dashboard/create" },
-  { icon: FileText, label: "Mis reportes", path: "/dashboard/reports", adminOnly: true }, // Solo admin
+  { icon: FileText, label: "Mis reportes", path: "/dashboard/reports", adminOnly: true },
   { icon: Bell, label: "Notificaciones", path: "/dashboard/notifications" },
   { icon: Key, label: "Confirmar asistencia", path: "/dashboard/confirmar-asistencia"},
   { icon: Star, label: "Calificar eventos", path: "/dashboard/rate"},
