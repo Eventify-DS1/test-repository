@@ -126,3 +126,57 @@ export const removeFromFavoritesRequest = (eventId) => {
 export const getFavoriteEventsRequest = () => {
     return apiClient.get('/events-utils/eventos/eventos_favoritos/');
 };
+
+// ============================================================================
+// REPORTES PARA ORGANIZADORES
+// ============================================================================
+
+export const getReporteOrganizadorRequest = (eventoId) => {
+  return apiClient.get(`/events-utils/eventos/${eventoId}/reporte_organizador/`);
+};
+
+export const getMisEventosReportesRequest = () => {
+  return apiClient.get("/events-utils/eventos/mis_eventos_reportes/");
+};
+
+
+ //* Exporta el reporte de un evento a CSV
+export const exportarReporteCSV = async (eventoId) => {
+  try {
+    const response = await getReporteOrganizadorRequest(eventoId);
+    const data = response.data;
+    
+    // Convertir a CSV
+    const headers = ['Nombre', 'Email', 'Código Estudiantil', 'Fecha Inscripción', 'Asistencia Confirmada', 'Fecha Confirmación'];
+    const rows = data.inscritos.map(inscrito => [
+      inscrito.nombre_completo,
+      inscrito.email,
+      inscrito.codigo_estudiantil || 'N/A',
+      new Date(inscrito.fecha_inscripcion).toLocaleDateString(),
+      inscrito.asistencia_confirmada ? 'Sí' : 'No',
+      inscrito.fecha_confirmacion ? new Date(inscrito.fecha_confirmacion).toLocaleDateString() : 'N/A'
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    // Descargar archivo
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `reporte_${data.evento.titulo}_${Date.now()}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    return response;
+  } catch (error) {
+    console.error('Error al exportar reporte CSV:', error);
+    throw error;
+  }
+};
+

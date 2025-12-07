@@ -5,14 +5,21 @@ import EventCard from "@/components/events/EventCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Users, Loader2, AlertCircle, History, Star } from "lucide-react";
+import { Calendar, Users, Loader2, AlertCircle, History, Star, BarChart3, Download, CheckCircle, XCircle, TrendingUp } from "lucide-react";
 import { getImageUrl } from "@/utils/imageHelpers";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell
+} from "recharts";
 import { 
   getMyCreatedEventsRequest,
   getAllSubscribedEventsRequest,
   getPastSubscribedEventsRequest,
   getPastCreatedEventsRequest,
-  getFavoriteEventsRequest
+  getFavoriteEventsRequest,
+  getMisEventosReportesRequest,
+  getReporteOrganizadorRequest,
+  exportarReporteCSV
 } from "@/api/events";
 
 // Interface para eventos del backend
@@ -76,7 +83,14 @@ const MisEventos = () => {
   const [errorFavoritos, setErrorFavoritos] = useState<string | null>(null);
   const [errorPasadosInscritos, setErrorPasadosInscritos] = useState<string | null>(null);
   const [errorPasadosCreados, setErrorPasadosCreados] = useState<string | null>(null);
-  const [showFavoritos, setShowFavoritos] = useState(false);
+
+  // Estados para reportes
+  const [reportesData, setReportesData] = useState<any>(null);
+  const [eventoSeleccionado, setEventoSeleccionado] = useState<number | null>(null);
+  const [reporteDetallado, setReporteDetallado] = useState<any>(null);
+  const [loadingReportes, setLoadingReportes] = useState(true);
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
+  const [errorReportes, setErrorReportes] = useState<string | null>(null);
 
   // Formatear fecha: "2024-01-15T14:30:00Z" → "15 de enero, 2024"
   const formatDate = (dateString: string) => {
@@ -114,7 +128,7 @@ const MisEventos = () => {
       categoriaId: evento.categoria?.id,
       fechaInicio: evento.fecha_inicio,
       fechaFin: evento.fecha_fin,
-      isFavorito: evento.is_favorito === true, // Mapear explícitamente a boolean
+      isFavorito: evento.is_favorito === true,
     };
   };
 
@@ -243,6 +257,67 @@ const MisEventos = () => {
     fetchPasadosCreados();
   }, []);
 
+  // Cargar reportes de eventos del organizador
+  useEffect(() => {
+    const fetchReportes = async () => {
+      try {
+        setLoadingReportes(true);
+        setErrorReportes(null);
+        const response = await getMisEventosReportesRequest();
+        setReportesData(response.data);
+        
+        if (response.data.eventos.length > 0) {
+          setEventoSeleccionado(response.data.eventos[0].evento_id);
+        }
+      } catch (error: any) {
+        console.error('Error al cargar reportes:', error);
+        setErrorReportes('Error al cargar los reportes. Por favor, intenta de nuevo.');
+      } finally {
+        setLoadingReportes(false);
+      }
+    };
+
+    fetchReportes();
+  }, []);
+
+  // Cargar detalle del evento seleccionado
+  useEffect(() => {
+    if (!eventoSeleccionado) return;
+
+    const fetchDetalle = async () => {
+      try {
+        setLoadingDetalle(true);
+        const response = await getReporteOrganizadorRequest(eventoSeleccionado);
+        setReporteDetallado(response.data);
+      } catch (error: any) {
+        console.error('Error al cargar detalle:', error);
+      } finally {
+        setLoadingDetalle(false);
+      }
+    };
+
+    fetchDetalle();
+  }, [eventoSeleccionado]);
+
+  const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+  const prepararDatosOcupacion = () => {
+    if (!reportesData) return [];
+    return reportesData.eventos.map((e: any) => ({
+      nombre: e.titulo.substring(0, 20) + (e.titulo.length > 20 ? '...' : ''),
+      inscritos: e.total_inscritos,
+      aforo: e.aforo
+    }));
+  };
+
+  const prepararDatosConfirmacion = () => {
+    if (!reporteDetallado) return [];
+    return [
+      { name: 'Confirmados', value: reporteDetallado.estadisticas.confirmados },
+      { name: 'Pendientes', value: reporteDetallado.estadisticas.pendientes }
+    ];
+  };
+
   // Combinar eventos pasados para el historial
   const eventosPasadosCombinados = [...eventosPasadosInscritos, ...eventosPasadosCreados];
   const loadingPasados = loadingPasadosInscritos || loadingPasadosCreados;
@@ -261,10 +336,10 @@ const MisEventos = () => {
           </div>
 
           <Tabs defaultValue="inscritos" className="w-full">
-            <TabsList className="grid w-full max-w-3xl grid-cols-4 mb-6">
+            <TabsList className="grid w-full max-w-4xl grid-cols-5 mb-6">
               <TabsTrigger value="inscritos" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                Eventos Inscritos
+                Inscritos
                 {eventosInscritos.length > 0 && (
                   <span className="ml-1 px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
                     {eventosInscritos.length}
@@ -273,7 +348,7 @@ const MisEventos = () => {
               </TabsTrigger>
               <TabsTrigger value="creados" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                Mis Eventos Creados
+                Creados
                 {eventosCreados.length > 0 && (
                   <span className="ml-1 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
                     {eventosCreados.length}
@@ -297,6 +372,10 @@ const MisEventos = () => {
                     {eventosPasadosCombinados.length}
                   </span>
                 )}
+              </TabsTrigger>
+              <TabsTrigger value="reportes" className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Reportes
               </TabsTrigger>
             </TabsList>
 
@@ -531,7 +610,6 @@ const MisEventos = () => {
                     </div>
                   ) : (
                     <div>
-                      {/* Eventos Pasados Inscritos */}
                       {eventosPasadosInscritos.length > 0 && (
                         <div className="mb-8">
                           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -564,7 +642,6 @@ const MisEventos = () => {
                         </div>
                       )}
 
-                      {/* Eventos Pasados Creados */}
                       {eventosPasadosCreados.length > 0 && (
                         <div>
                           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -601,6 +678,291 @@ const MisEventos = () => {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* SECCIÓN: REPORTES */}
+            <TabsContent value="reportes" className="mt-6">
+              {loadingReportes ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                  <span className="ml-2 text-gray-600">Cargando reportes...</span>
+                </div>
+              ) : errorReportes ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+                      <p className="text-red-600 mb-4">{errorReportes}</p>
+                      <Button variant="outline" onClick={() => window.location.reload()}>
+                        Reintentar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : reportesData && reportesData.eventos.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <BarChart3 className="h-16 w-16 text-gray-300 mb-4" />
+                      <p className="text-gray-600 text-lg mb-2">No has creado eventos aún</p>
+                      <p className="text-gray-500 text-sm mb-4">
+                        Crea tu primer evento para ver estadísticas y reportes
+                      </p>
+                      <Button onClick={() => navigate('/dashboard/create')}>
+                        Crear Evento
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-6">
+                  {/* Resumen General */}
+                  <div className="grid md:grid-cols-4 gap-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-blue-600" />
+                          Eventos Creados
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{reportesData.resumen.total_eventos}</div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <Users className="h-4 w-4 text-green-600" />
+                          Total Inscritos
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{reportesData.resumen.total_inscritos}</div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-purple-600" />
+                          Confirmados
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{reportesData.resumen.total_confirmados}</div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-amber-600" />
+                          Ocupación Promedio
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{reportesData.resumen.promedio_ocupacion.toFixed(1)}%</div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Gráfica de Ocupación */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Ocupación por Evento</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={prepararDatosOcupacion()}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="nombre" />
+                          <YAxis />
+                          <Tooltip />
+                          <Legend />
+                          <Bar dataKey="inscritos" fill="#3b82f6" name="Inscritos" />
+                          <Bar dataKey="aforo" fill="#d1d5db" name="Aforo Total" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  {/* Selector de Evento y Detalle */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>Detalle de Evento</CardTitle>
+                        <select
+                          className="border rounded px-3 py-2 bg-white"
+                          value={eventoSeleccionado || ''}
+                          onChange={(e) => setEventoSeleccionado(Number(e.target.value))}
+                        >
+                          {reportesData.eventos.map((evento: any) => (
+                            <option key={evento.evento_id} value={evento.evento_id}>
+                              {evento.titulo}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {loadingDetalle ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                        </div>
+                      ) : reporteDetallado ? (
+                        <div className="space-y-6">
+                          {/* Info del Evento */}
+                          <div className="bg-blue-50 rounded-lg p-4">
+                            <h3 className="font-semibold text-lg mb-2">{reporteDetallado.evento.titulo}</h3>
+                            <div className="grid md:grid-cols-2 gap-2 text-sm">
+                              <p><span className="font-medium">Ubicación:</span> {reporteDetallado.evento.ubicacion}</p>
+                              <p><span className="font-medium">Categoría:</span> {reporteDetallado.evento.categoria}</p>
+                              <p><span className="font-medium">Código:</span> <span className="font-mono bg-white px-2 py-1 rounded">{reporteDetallado.evento.codigo_confirmacion}</span></p>
+                              <p><span className="font-medium">Aforo:</span> {reporteDetallado.evento.aforo} personas</p>
+                            </div>
+                          </div>
+
+                          {/* Estadísticas */}
+                          <div className="grid md:grid-cols-2 gap-6">
+                            {/* Gráfica de Confirmación */}
+                            <div>
+                              <h4 className="font-semibold mb-4">Estado de Asistencia</h4>
+                              {reporteDetallado.estadisticas.total_inscritos > 0 ? (
+                                <ResponsiveContainer width="100%" height={250}>
+                                  <PieChart>
+                                    <Pie
+                                      data={prepararDatosConfirmacion()}
+                                      cx="50%"
+                                      cy="50%"
+                                      labelLine={false}
+                                      label={({name, percent}) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                      outerRadius={80}
+                                      fill="#8884d8"
+                                      dataKey="value"
+                                    >
+                                      {prepararDatosConfirmacion().map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                      ))}
+                                    </Pie>
+                                    <Tooltip />
+                                  </PieChart>
+                                </ResponsiveContainer>
+                              ) : (
+                                <div className="flex items-center justify-center h-64 text-gray-400">
+                                  <p>No hay inscritos aún</p>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Métricas */}
+                            <div className="space-y-4">
+                              <div className="border rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm text-gray-600">Porcentaje de Confirmación</span>
+                                  <CheckCircle className="h-5 w-5 text-green-600" />
+                                </div>
+                                <div className="text-3xl font-bold text-green-600">
+                                  {reporteDetallado.estadisticas.porcentaje_confirmacion.toFixed(1)}%
+                                </div>
+                              </div>
+
+                              <div className="border rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm text-gray-600">Cupos Disponibles</span>
+                                  <Users className="h-5 w-5 text-blue-600" />
+                                </div>
+                                <div className="text-3xl font-bold text-blue-600">
+                                  {reporteDetallado.estadisticas.cupos_disponibles}
+                                </div>
+                              </div>
+
+                              <div className="border rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm text-gray-600">Calificación Promedio</span>
+                                  <Star className="h-5 w-5 text-amber-500 fill-amber-500" />
+                                </div>
+                                <div className="text-3xl font-bold text-amber-600">
+                                  {reporteDetallado.estadisticas.promedio_calificacion > 0 
+                                    ? `${reporteDetallado.estadisticas.promedio_calificacion.toFixed(1)} / 5`
+                                    : 'Sin calificaciones'
+                                  }
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {reporteDetallado.estadisticas.total_reseñas} reseñas
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Lista de Inscritos */}
+                          <div>
+                            <div className="flex items-center justify-between mb-4">
+                              <h4 className="font-semibold">
+                                Lista de Inscritos ({reporteDetallado.inscritos.length})
+                              </h4>
+                              {reporteDetallado.inscritos.length > 0 && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => exportarReporteCSV(eventoSeleccionado!)}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Download className="h-4 w-4" />
+                                  Exportar CSV
+                                </Button>
+                              )}
+                            </div>
+
+                            {reporteDetallado.inscritos.length > 0 ? (
+                              <div className="border rounded-lg overflow-hidden">
+                                <div className="max-h-96 overflow-y-auto">
+                                  <table className="w-full">
+                                    <thead className="bg-gray-50 sticky top-0">
+                                      <tr>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
+                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                      {reporteDetallado.inscritos.map((inscrito: any) => (
+                                        <tr key={inscrito.id} className="hover:bg-gray-50">
+                                          <td className="px-4 py-3 text-sm">{inscrito.nombre_completo}</td>
+                                          <td className="px-4 py-3 text-sm text-gray-600">{inscrito.email}</td>
+                                          <td className="px-4 py-3 text-sm font-mono">{inscrito.codigo_estudiantil || 'N/A'}</td>
+                                          <td className="px-4 py-3">
+                                            {inscrito.asistencia_confirmada ? (
+                                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
+                                                <CheckCircle className="h-3 w-3" />
+                                                Confirmado
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-amber-100 text-amber-700">
+                                                <XCircle className="h-3 w-3" />
+                                                Pendiente
+                                              </span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="border rounded-lg p-8 text-center text-gray-400">
+                                <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                                <p>No hay inscritos en este evento todavía</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </TabsContent>
           </Tabs>
         </div>
       </div>
@@ -609,4 +971,3 @@ const MisEventos = () => {
 };
 
 export default MisEventos;
-
