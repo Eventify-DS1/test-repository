@@ -1,10 +1,10 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { Home, Search, Plus, FileText, Bell, Star, User, LogOut, Loader2, Key, Calendar, List } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { logoutRequest } from "@/api/auth";
+import { logoutRequest, getCurrentUserRequest } from "@/api/auth";
 import { toast } from "sonner";
 
 type MenuItem = {
@@ -12,6 +12,7 @@ type MenuItem = {
   label: string;
   path: string;
   disabled?: boolean;
+  adminOnly?: boolean; // Nueva propiedad para items solo de admin
 };
 
 const menuItems: MenuItem[] = [
@@ -20,7 +21,7 @@ const menuItems: MenuItem[] = [
   { icon: Search, label: "Buscar eventos", path: "/dashboard/search" },
   { icon: Calendar, label: "Calendario", path: "/dashboard/calendario" },
   { icon: Plus, label: "Crear evento", path: "/dashboard/create" },
-  { icon: FileText, label: "Mis reportes", path: "/dashboard/reports"},
+  { icon: FileText, label: "Mis reportes", path: "/dashboard/reports", adminOnly: true }, // Solo admin
   { icon: Bell, label: "Notificaciones", path: "/dashboard/notifications" },
   { icon: Key, label: "Confirmar asistencia", path: "/dashboard/confirmar-asistencia"},
   { icon: Star, label: "Calificar eventos", path: "/dashboard/rate"},
@@ -30,6 +31,38 @@ const menuItems: MenuItem[] = [
 const Sidebar = () => {
   const navigate = useNavigate();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Obtener el rol del usuario al cargar el componente
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      try {
+        const response = await getCurrentUserRequest();
+        // Usar rol_data.nombre del serializer
+        setUserRole(response.data.rol_data?.nombre || null);
+      } catch (error) {
+        console.error("Error al obtener rol del usuario:", error);
+        // Si hay error de autenticación, redirigir al login
+        if (error.response?.status === 401) {
+          navigate("/login");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserRole();
+  }, [navigate]);
+
+  // Filtrar items del menú según el rol
+  const filteredMenuItems = menuItems.filter(item => {
+    // Si el item es solo para admin, verificar que el usuario sea admin
+    if (item.adminOnly) {
+      return userRole?.toLowerCase() === 'admin' || userRole?.toLowerCase() === 'administrador';
+    }
+    return true;
+  });
 
   const handleLogout = async () => {
     try {
@@ -45,6 +78,17 @@ const Sidebar = () => {
     }
   };
 
+  // Mostrar loader mientras se carga el rol
+  if (loading) {
+    return (
+      <aside className="w-64 border-r bg-muted/30 h-screen sticky top-0 flex flex-col overflow-hidden">
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <aside className="w-64 border-r bg-muted/30 h-screen sticky top-0 flex flex-col overflow-hidden">
       {/* Header con logo */}
@@ -56,7 +100,7 @@ const Sidebar = () => {
       
       {/* Navegación con scroll */}
       <nav className="flex-1 overflow-y-auto px-4 py-2 space-y-1">
-        {menuItems.map((item) => {
+        {filteredMenuItems.map((item) => {
           if (item.disabled) {
             return (
               <div
