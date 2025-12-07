@@ -168,6 +168,31 @@ const MisEventos = () => {
     fetchCreados();
   }, []);
 
+  // Cargar eventos favoritos
+  useEffect(() => {
+    const fetchFavoritos = async () => {
+      try {
+        setLoadingFavoritos(true);
+        setErrorFavoritos(null);
+        const response = await getFavoriteEventsRequest();
+        const eventos = Array.isArray(response.data) ? response.data : [];
+        const eventosMapeados = eventos.map(mapEventToCard);
+        setEventosFavoritos(eventosMapeados);
+      } catch (error: any) {
+        console.error('Error al cargar eventos favoritos:', error);
+        setErrorFavoritos(
+          error.response?.data?.detail || 
+          'Error al cargar eventos favoritos. Por favor, intenta de nuevo.'
+        );
+        setEventosFavoritos([]);
+      } finally {
+        setLoadingFavoritos(false);
+      }
+    };
+
+    fetchFavoritos();
+  }, []);
+
   // Cargar eventos pasados inscritos
   useEffect(() => {
     const fetchPasadosInscritos = async () => {
@@ -398,6 +423,7 @@ const MisEventos = () => {
                           categoriaId={evento.categoriaId}
                           fechaInicio={evento.fechaInicio}
                           fechaFin={evento.fechaFin}
+                          isFavorito={evento.isFavorito}
                         />
                       ))}
                     </div>
@@ -531,6 +557,7 @@ const MisEventos = () => {
                                 categoriaId={evento.categoriaId}
                                 fechaInicio={evento.fechaInicio}
                                 fechaFin={evento.fechaFin}
+                                isFavorito={evento.isFavorito}
                               />
                             ))}
                           </div>

@@ -27,6 +27,14 @@ interface EventoBackend {
     nombre: string;
   } | null;
   numero_inscritos: number;
+  is_favorito?: boolean;
+  organizador?: {
+    id: number;
+    username: string;
+    first_name: string;
+    last_name: string;
+    nombre_completo: string;
+  };
 }
 
 // Interface para eventos mapeados para EventCard
@@ -40,6 +48,12 @@ interface EventoMapeado {
   capacity: number;
   registered: number;
   image?: string;
+  organizadorId?: number;
+  descripcion?: string;
+  categoriaId?: number;
+  fechaInicio?: string;
+  fechaFin?: string;
+  isFavorito?: boolean;
 }
 
 const Dashboard = () => {
@@ -79,7 +93,13 @@ const Dashboard = () => {
     location: evento.ubicacion,
     capacity: evento.aforo,
     registered: evento.numero_inscritos || 0,
-    image: getImageUrl(evento.foto)
+    image: getImageUrl(evento.foto),
+    organizadorId: evento.organizador?.id,
+    descripcion: evento.descripcion,
+    categoriaId: evento.categoria?.id,
+    fechaInicio: evento.fecha_inicio,
+    fechaFin: evento.fecha_fin,
+    isFavorito: evento.is_favorito === true,
   });
 
   // Cargar eventos populares (los 3 con más inscritos)
@@ -256,6 +276,13 @@ const Dashboard = () => {
                     capacity={event.capacity}
                     registered={event.registered}
                     image={event.image}
+                    skipAuthCheck={false}
+                    organizadorId={event.organizadorId}
+                    descripcion={event.descripcion}
+                    categoriaId={event.categoriaId}
+                    fechaInicio={event.fechaInicio}
+                    fechaFin={event.fechaFin}
+                    isFavorito={event.isFavorito}
                   />
                 </div>
               ))}
@@ -296,6 +323,13 @@ const Dashboard = () => {
                     capacity={event.capacity}
                     registered={event.registered}
                     image={event.image}
+                    skipAuthCheck={false}
+                    organizadorId={event.organizadorId}
+                    descripcion={event.descripcion}
+                    categoriaId={event.categoriaId}
+                    fechaInicio={event.fechaInicio}
+                    fechaFin={event.fechaFin}
+                    isFavorito={event.isFavorito}
                   />
                 </div>
               ))}
@@ -343,6 +377,13 @@ const Dashboard = () => {
                     capacity={event.capacity}
                     registered={event.registered}
                     image={event.image}
+                    skipAuthCheck={false}
+                    organizadorId={event.organizadorId}
+                    descripcion={event.descripcion}
+                    categoriaId={event.categoriaId}
+                    fechaInicio={event.fechaInicio}
+                    fechaFin={event.fechaFin}
+                    isFavorito={event.isFavorito}
                   />
                 </div>
               ))}

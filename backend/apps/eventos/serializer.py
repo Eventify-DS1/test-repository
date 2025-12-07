@@ -36,7 +36,7 @@ class OrganizadorSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Usuario
-        fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo']
+        fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo', 'foto']
         read_only_fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo']
     
     def get_nombre_completo(self, obj):
@@ -56,8 +56,8 @@ class UsuarioInscritoSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Usuario
-        fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo', 'email', 'codigo_estudiantil']
-        read_only_fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo', 'email', 'codigo_estudiantil']
+        fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo', 'email', 'codigo_estudiantil', 'foto']
+        read_only_fields = ['id', 'username', 'first_name', 'last_name', 'nombre_completo', 'email', 'codigo_estudiantil', 'foto']
     
     def get_nombre_completo(self, obj):
         """Retorna el nombre completo o username si no tiene nombre"""

@@ -2,7 +2,7 @@ import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star, Download } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star, Download, Share2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/Header";
@@ -34,6 +34,7 @@ interface Organizador {
   first_name: string;
   last_name: string;
   nombre_completo: string;
+  foto?: string | null;
 }
 
 interface UsuarioInscrito {
@@ -44,6 +45,7 @@ interface UsuarioInscrito {
   nombre_completo: string;
   email?: string | null;
   codigo_estudiantil?: string | null;
+  foto?: string | null;
   asistencia_confirmada?: boolean;
 }
 
@@ -461,6 +463,58 @@ const EventDetail = () => {
       }
     };
 
+    const handleShareEvent = async () => {
+      if (!id) return;
+      
+      // Construir la URL completa del evento
+      const eventUrl = `${window.location.origin}${isFromDashboard ? '/dashboard/event' : '/event'}/${id}`;
+      
+      try {
+        // Intentar usar la API moderna de compartir si está disponible
+        if (navigator.share) {
+          await navigator.share({
+            title: evento?.titulo || 'Evento',
+            text: evento?.descripcion || 'Mira este evento',
+            url: eventUrl,
+          });
+          toast({
+            title: "Evento compartido",
+            description: "El evento se ha compartido exitosamente.",
+            variant: "default",
+          });
+        } else {
+          // Fallback: copiar al portapapeles
+          await navigator.clipboard.writeText(eventUrl);
+          toast({
+            title: "Link copiado",
+            description: "El link del evento se ha copiado al portapapeles.",
+            variant: "default",
+          });
+        }
+      } catch (error: any) {
+        // Si el usuario cancela el share, no mostrar error
+        if (error.name === 'AbortError') {
+          return;
+        }
+        
+        // Fallback: intentar copiar al portapapeles
+        try {
+          await navigator.clipboard.writeText(eventUrl);
+          toast({
+            title: "Link copiado",
+            description: "El link del evento se ha copiado al portapapeles.",
+            variant: "default",
+          });
+        } catch (clipboardError) {
+          toast({
+            title: "Error",
+            description: "No se pudo copiar el link. Por favor, cópialo manualmente.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
     const handleExportPDF = () => {
       if (!evento || !evento.inscritos || evento.inscritos.length === 0) {
         toast({
@@ -601,20 +655,29 @@ const EventDetail = () => {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
                     <h1 className="text-4xl font-bold">{evento.titulo}</h1>
-                    {isAuthenticated && (
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={handleToggleFavorite}
-                        disabled={isTogglingFavorite}
-                        className={`p-2 rounded-full transition-all ${
-                          isFavorito
-                            ? "bg-yellow-400 hover:bg-yellow-500 text-yellow-900"
-                            : "bg-muted hover:bg-muted/80 text-muted-foreground"
-                        }`}
-                        title={isFavorito ? "Quitar de favoritos" : "Agregar a favoritos"}
+                        onClick={handleShareEvent}
+                        className="p-2 rounded-full transition-all bg-muted hover:bg-muted/80 text-muted-foreground"
+                        title="Compartir evento"
                       >
-                        <Star className={`h-5 w-5 ${isFavorito ? "fill-current" : ""}`} />
+                        <Share2 className="h-5 w-5" />
                       </button>
-                    )}
+                      {isAuthenticated && (
+                        <button
+                          onClick={handleToggleFavorite}
+                          disabled={isTogglingFavorite}
+                          className={`p-2 rounded-full transition-all ${
+                            isFavorito
+                              ? "bg-yellow-400 hover:bg-yellow-500 text-yellow-900"
+                              : "bg-muted hover:bg-muted/80 text-muted-foreground"
+                          }`}
+                          title={isFavorito ? "Quitar de favoritos" : "Agregar a favoritos"}
+                        >
+                          <Star className={`h-5 w-5 ${isFavorito ? "fill-current" : ""}`} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <Badge className="bg-primary/20 text-primary text-sm">
                     {evento.categoria?.nombre || "Sin categoría"}
