@@ -1,5 +1,5 @@
 import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star, Download, Share2, Mail } from "lucide-react";
@@ -92,6 +92,9 @@ const EventDetail = () => {
     enabled: isFromDashboard, // Solo cargar si estamos en el dashboard
   });
   
+  // El usuario efectivo solo se usa si estamos en el dashboard
+  const effectiveCurrentUser = isFromDashboard ? currentUser : null;
+  
   const [codigoConfirmacion, setCodigoConfirmacion] = useState("");
   const [isConfirming, setIsConfirming] = useState(false);
   const [isFavorito, setIsFavorito] = useState(false);
@@ -100,6 +103,53 @@ const EventDetail = () => {
   const [messageSubject, setMessageSubject] = useState("");
   const [messageContent, setMessageContent] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+
+  // Memoizar handlers para evitar re-renderizados innecesarios del Dialog
+  const handleSubjectChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    e.stopPropagation();
+    setMessageSubject(e.target.value);
+  }, []);
+
+  const handleContentChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    e.stopPropagation();
+    setMessageContent(e.target.value);
+  }, []);
+
+  const handleSendMessage = useCallback(async () => {
+    if (!id || !evento || !messageSubject.trim() || !messageContent.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor, completa todos los campos del mensaje.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingMessage(true);
+    try {
+      await sendMessageToInscritosRequest(parseInt(id), messageSubject.trim(), messageContent.trim());
+      toast({
+        title: "Mensaje enviado",
+        description: `El mensaje se está enviando a ${evento.inscritos?.length || 0} participante(s).`,
+        variant: "default",
+      });
+      setIsMessageDialogOpen(false);
+      // Limpiar campos después de un pequeño delay para evitar re-render durante el cierre
+      setTimeout(() => {
+        setMessageSubject("");
+        setMessageContent("");
+      }, 200);
+    } catch (error: any) {
+      console.error('Error al enviar mensaje:', error);
+      toast({
+        title: "Error al enviar mensaje",
+        description: error.response?.data?.detail || "No se pudo enviar el mensaje. Por favor, intenta de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingMessage(false);
+    }
+  }, [id, evento, messageSubject, messageContent, toast]);
 
   // Verificar si el evento terminó (fecha_fin < hoy)
   const isEventFinished = evento ? new Date(evento.fecha_fin) < new Date() : false;
@@ -450,39 +500,6 @@ const EventDetail = () => {
         });
       } finally {
         setIsTogglingFavorite(false);
-    }
-  };
-
-  const handleSendMessage = async () => {
-    if (!id || !evento || !messageSubject.trim() || !messageContent.trim()) {
-      toast({
-        title: "Error",
-        description: "Por favor, completa todos los campos del mensaje.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsSendingMessage(true);
-    try {
-      await sendMessageToInscritosRequest(parseInt(id), messageSubject.trim(), messageContent.trim());
-      toast({
-        title: "Mensaje enviado",
-        description: `El mensaje se está enviando a ${evento.inscritos?.length || 0} participante(s).`,
-        variant: "default",
-      });
-      setIsMessageDialogOpen(false);
-      setMessageSubject("");
-      setMessageContent("");
-    } catch (error: any) {
-      console.error('Error al enviar mensaje:', error);
-      toast({
-        title: "Error al enviar mensaje",
-        description: error.response?.data?.detail || "No se pudo enviar el mensaje. Por favor, intenta de nuevo.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSendingMessage(false);
     }
   };
 
@@ -995,84 +1012,14 @@ const EventDetail = () => {
               )}
               {isOwner && (
                 <div className="space-y-3 mt-6">
-                  <Dialog open={isMessageDialogOpen} onOpenChange={setIsMessageDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button 
-                        className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0"
-                        variant="default"
-                      >
-                        <Mail className="mr-2 h-4 w-4" />
-                        Enviar mensaje a inscritos
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[600px]">
-                      <DialogHeader>
-                        <DialogTitle>Enviar mensaje a participantes</DialogTitle>
-                        <DialogDescription>
-                          Escribe un mensaje que se enviará por correo electrónico a todos los participantes inscritos en este evento.
-                          {evento.inscritos && evento.inscritos.length > 0 && (
-                            <span className="block mt-1 font-medium text-foreground">
-                              Se enviará a {evento.inscritos.length} participante(s).
-                            </span>
-                          )}
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="subject">Asunto</Label>
-                          <Input
-                            id="subject"
-                            placeholder="Ej: Recordatorio importante sobre el evento"
-                            value={messageSubject}
-                            onChange={(e) => setMessageSubject(e.target.value)}
-                            disabled={isSendingMessage}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="message">Mensaje</Label>
-                          <Textarea
-                            id="message"
-                            placeholder="Escribe tu mensaje aquí..."
-                            value={messageContent}
-                            onChange={(e) => setMessageContent(e.target.value)}
-                            disabled={isSendingMessage}
-                            rows={8}
-                            className="resize-none"
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setIsMessageDialogOpen(false);
-                            setMessageSubject("");
-                            setMessageContent("");
-                          }}
-                          disabled={isSendingMessage}
-                        >
-                          Cancelar
-                        </Button>
-                        <Button
-                          onClick={handleSendMessage}
-                          disabled={isSendingMessage || !messageSubject.trim() || !messageContent.trim()}
-                          className="gradient-primary text-white border-0"
-                        >
-                          {isSendingMessage ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Enviando...
-                            </>
-                          ) : (
-                            <>
-                              <Mail className="mr-2 h-4 w-4" />
-                              Enviar mensaje
-                            </>
-                          )}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                  <Button 
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0"
+                    variant="default"
+                    onClick={() => setIsMessageDialogOpen(true)}
+                  >
+                    <Mail className="mr-2 h-4 w-4" />
+                    Enviar mensaje a inscritos
+                  </Button>
                   <Button 
                     className="w-full gradient-primary text-white border-0" 
                     asChild
@@ -1165,21 +1112,185 @@ const EventDetail = () => {
   // Layout condicional: Si viene del dashboard, usa Sidebar; si no, usa Header+Footer
   if (isFromDashboard) {
     return (
-      <div className="flex min-h-screen w-full">
-        <Sidebar />
-        <main className="flex-1">
-          <EventContent />
-        </main>
-      </div>
+      <>
+        <div className="flex min-h-screen w-full">
+          <Sidebar />
+          <main className="flex-1">
+            <EventContent />
+          </main>
+        </div>
+        {/* Dialog fuera de EventContent para evitar re-renderizados */}
+        <Dialog 
+          open={isMessageDialogOpen} 
+          onOpenChange={(open) => {
+            setIsMessageDialogOpen(open);
+            if (!open) {
+              // Limpiar campos solo cuando se cierra el modal
+              setTimeout(() => {
+                setMessageSubject("");
+                setMessageContent("");
+              }, 100);
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Enviar mensaje a participantes</DialogTitle>
+              <DialogDescription>
+                Escribe un mensaje que se enviará por correo electrónico a todos los participantes inscritos en este evento.
+                {evento?.inscritos && evento.inscritos.length > 0 && (
+                  <span className="block mt-1 font-medium text-foreground">
+                    Se enviará a {evento.inscritos.length} participante(s).
+                  </span>
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="subject">Asunto</Label>
+                <Input
+                  id="subject"
+                  placeholder="Ej: Recordatorio importante sobre el evento"
+                  value={messageSubject}
+                  onChange={handleSubjectChange}
+                  disabled={isSendingMessage}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="message">Mensaje</Label>
+                <Textarea
+                  id="message"
+                  placeholder="Escribe tu mensaje aquí..."
+                  value={messageContent}
+                  onChange={handleContentChange}
+                  disabled={isSendingMessage}
+                  rows={8}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsMessageDialogOpen(false);
+                }}
+                disabled={isSendingMessage}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSendMessage}
+                disabled={isSendingMessage || !messageSubject.trim() || !messageContent.trim()}
+                className="gradient-primary text-white border-0"
+              >
+                {isSendingMessage ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="mr-2 h-4 w-4" />
+                    Enviar mensaje
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
-      <EventContent />
-      <Footer />
-    </div>
+    <>
+      <div className="min-h-screen flex flex-col">
+        <Header />
+        <EventContent />
+        <Footer />
+      </div>
+      {/* Dialog fuera de EventContent para evitar re-renderizados */}
+      <Dialog 
+        open={isMessageDialogOpen} 
+        onOpenChange={(open) => {
+          setIsMessageDialogOpen(open);
+          if (!open) {
+            // Limpiar campos solo cuando se cierra el modal
+            setTimeout(() => {
+              setMessageSubject("");
+              setMessageContent("");
+            }, 100);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Enviar mensaje a participantes</DialogTitle>
+            <DialogDescription>
+              Escribe un mensaje que se enviará por correo electrónico a todos los participantes inscritos en este evento.
+              {evento?.inscritos && evento.inscritos.length > 0 && (
+                <span className="block mt-1 font-medium text-foreground">
+                  Se enviará a {evento.inscritos.length} participante(s).
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="subject">Asunto</Label>
+              <Input
+                id="subject"
+                placeholder="Ej: Recordatorio importante sobre el evento"
+                value={messageSubject}
+                onChange={handleSubjectChange}
+                disabled={isSendingMessage}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="message">Mensaje</Label>
+              <Textarea
+                id="message"
+                placeholder="Escribe tu mensaje aquí..."
+                value={messageContent}
+                onChange={handleContentChange}
+                disabled={isSendingMessage}
+                rows={8}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsMessageDialogOpen(false);
+              }}
+              disabled={isSendingMessage}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSendMessage}
+              disabled={isSendingMessage || !messageSubject.trim() || !messageContent.trim()}
+              className="gradient-primary text-white border-0"
+            >
+              {isSendingMessage ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  <Mail className="mr-2 h-4 w-4" />
+                  Enviar mensaje
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

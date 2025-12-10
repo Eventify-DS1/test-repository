@@ -6,7 +6,7 @@ from rest_framework import serializers
 from django.utils import timezone 
 from .models import Evento, CategoriaEvento, Inscripcion, Reseña
 from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer, ReseñaSerializer
-from .tasks import send_email_task
+from .tasks import send_email_task, send_message_to_inscritos
 
 class CategoriaEventoViewSet(viewsets.ModelViewSet):
     """
