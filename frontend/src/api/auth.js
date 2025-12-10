@@ -66,6 +66,11 @@ export const getEventosStatsRequest = () => {
     return apiClient.get('/events-utils/eventos/estadisticas/');
 };
 
+// Función para obtener el usuario actual con su rol
+export const getCurrentUserRequest = () => {
+  return apiClient.get('/users-utils/usuarios/me/');
+};
+
 export const getUsuariosStatsRequest = () => {
     return apiClient.get('/users-utils/usuarios/estadisticas/');
 };

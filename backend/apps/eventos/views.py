@@ -566,6 +566,134 @@ class EventoViewSet(viewsets.ModelViewSet):
         # Pasar el request en el contexto para que get_is_favorito funcione correctamente
         serializer = self.get_serializer(eventos_favoritos, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def reporte_organizador(self, request, pk=None):
+        """
+        Retorna un reporte detallado de asistencia para un evento específico.
+        Solo accesible por el organizador del evento.
+        """
+        evento = self.get_object()
+    
+        # Verificar que el usuario es el organizador
+        if evento.organizador != request.user:
+            return Response(
+                {'error': 'Solo el organizador puede ver este reporte.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+    
+        # Obtener todas las inscripciones
+        inscripciones = evento.inscripciones.select_related('usuario').all()
+    
+        # Calcular estadísticas
+        total_inscritos = inscripciones.count()
+        confirmados = inscripciones.filter(asistencia_confirmada=True).count()
+        pendientes = total_inscritos - confirmados
+        porcentaje_confirmacion = (confirmados / total_inscritos * 100) if total_inscritos > 0 else 0
+        cupos_disponibles = evento.aforo - total_inscritos
+        porcentaje_ocupacion = (total_inscritos / evento.aforo * 100) if evento.aforo > 0 else 0
+    
+        # Obtener reseñas del evento
+        from django.db.models import Avg
+        reseñas = Reseña.objects.filter(evento=evento)
+        promedio_calificacion = reseñas.aggregate(promedio=Avg('puntuacion'))['promedio'] or 0
+        total_reseñas = reseñas.count()
+    
+        # Preparar lista de inscritos con detalles
+        inscritos_detalle = []
+        for inscripcion in inscripciones:
+            usuario = inscripcion.usuario
+            inscritos_detalle.append({
+                'id': usuario.id,
+                'username': usuario.username,
+                'nombre_completo': f"{usuario.first_name} {usuario.last_name}".strip() or usuario.username,
+                'email': usuario.email,
+                'codigo_estudiantil': usuario.codigo_estudiantil,
+                'fecha_inscripcion': inscripcion.fecha_inscripcion.isoformat(),
+                'asistencia_confirmada': inscripcion.asistencia_confirmada,
+                'fecha_confirmacion': inscripcion.fecha_confirmacion.isoformat() if inscripcion.fecha_confirmacion else None,
+            })
+    
+        # Datos del evento
+        evento_data = {
+            'id': evento.id,
+            'titulo': evento.titulo,
+            'fecha_inicio': evento.fecha_inicio.isoformat(),
+            'fecha_fin': evento.fecha_fin.isoformat(),
+            'ubicacion': evento.ubicacion,
+            'aforo': evento.aforo,
+            'codigo_confirmacion': evento.codigo_confirmacion,
+            'categoria': evento.categoria.nombre if evento.categoria else None,
+        }
+    
+        return Response({
+            'evento': evento_data,
+            'estadisticas': {
+                'total_inscritos': total_inscritos,
+                'confirmados': confirmados,
+                'pendientes': pendientes,
+                'porcentaje_confirmacion': round(porcentaje_confirmacion, 2),
+                'cupos_disponibles': cupos_disponibles,
+                'porcentaje_ocupacion': round(porcentaje_ocupacion, 2),
+                'promedio_calificacion': round(promedio_calificacion, 2) if promedio_calificacion else 0,
+                'total_reseñas': total_reseñas,
+            },
+            'inscritos': inscritos_detalle,
+        }, status=status.HTTP_200_OK)
+
+
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def mis_eventos_reportes(self, request):
+        """
+        Retorna un resumen de reportes para todos los eventos creados por el usuario.
+        Útil para mostrar una vista general en el frontend.
+    """
+        from django.db.models import Count, Q, Avg
+    
+        # Obtener eventos del organizador
+        eventos = Evento.objects.filter(organizador=request.user)
+    
+        reportes = []
+        for evento in eventos:
+            total_inscritos = evento.inscripciones.count()
+            confirmados = evento.inscripciones.filter(asistencia_confirmada=True).count()
+            porcentaje_confirmacion = (confirmados / total_inscritos * 100) if total_inscritos > 0 else 0
+            porcentaje_ocupacion = (total_inscritos / evento.aforo * 100) if evento.aforo > 0 else 0
+        
+            # Promedio de calificaciones
+            promedio = Reseña.objects.filter(evento=evento).aggregate(
+                promedio=Avg('puntuacion')
+            )['promedio'] or 0
+        
+            reportes.append({
+                'evento_id': evento.id,
+                'titulo': evento.titulo,
+                'fecha_inicio': evento.fecha_inicio.isoformat(),
+                'fecha_fin': evento.fecha_fin.isoformat(),
+                'aforo': evento.aforo,
+                'total_inscritos': total_inscritos,
+                'confirmados': confirmados,
+                'pendientes': total_inscritos - confirmados,
+                'porcentaje_confirmacion': round(porcentaje_confirmacion, 2),
+                'porcentaje_ocupacion': round(porcentaje_ocupacion, 2),
+                'promedio_calificacion': round(promedio, 2),
+                'estado': 'finalizado' if evento.fecha_fin < timezone.now() else 'activo',
+            })
+    
+     # Estadísticas generales
+        total_eventos = len(reportes)
+        total_inscritos_general = sum(r['total_inscritos'] for r in reportes)
+        total_confirmados_general = sum(r['confirmados'] for r in reportes)
+        promedio_ocupacion = sum(r['porcentaje_ocupacion'] for r in reportes) / total_eventos if total_eventos > 0 else 0
+    
+        return Response({
+            'resumen': {
+                'total_eventos': total_eventos,
+                'total_inscritos': total_inscritos_general,
+                'total_confirmados': total_confirmados_general,
+                'promedio_ocupacion': round(promedio_ocupacion, 2),
+            },
+            'eventos': reportes,
+        }, status=status.HTTP_200_OK)
         
     
 class InscripcionViewSet(viewsets.ModelViewSet):

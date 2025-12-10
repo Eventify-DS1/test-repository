@@ -12,7 +12,7 @@ class RolSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Rol
-        fields = '__all__'
+        fields = ['id', 'nombre']
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
@@ -58,7 +58,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Este correo electrónico ya está en uso.")
         return value
 
-    # Campo para asignar el rol mediante su ID (solo escritura)
+    # Campo para asignar el rol mediante su ID 
     rol = serializers.PrimaryKeyRelatedField(
         queryset=Rol.objects.all(),
         write_only=True,
@@ -92,7 +92,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
     )
 
     # Rol anidado (solo lectura)
-    rol_data = RolSerializer(read_only=True)
+    rol_data = RolSerializer(source='rol', read_only=True)
 
     class Meta:
         model = Usuario
@@ -222,7 +222,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
         if password:
             instance.set_password(password)
         
-        # 🔥 NUEVO: Si el rol cambia a admin, actualizar permisos
+        # Si el rol cambia a admin, actualizar permisos
         if rol:
             if rol.nombre.lower() in ['admin', 'administrador']:
                 instance.is_staff = True
