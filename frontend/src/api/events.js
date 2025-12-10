@@ -127,6 +127,14 @@ export const getFavoriteEventsRequest = () => {
     return apiClient.get('/events-utils/eventos/eventos_favoritos/');
 };
 
+// Enviar mensaje a todos los inscritos de un evento (solo organizador)
+export const sendMessageToInscritosRequest = (eventId, subject, message) => {
+    return apiClient.post(`/events-utils/eventos/${eventId}/enviar_mensaje_inscritos/`, {
+        subject,
+        message
+    });
+};
+
 // ============================================================================
 // REPORTES PARA ORGANIZADORES
 // ============================================================================

@@ -2,8 +2,11 @@ import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star, Download, Share2 } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star, Download, Share2, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -16,10 +19,11 @@ import {
   unsubscribeFromEventRequest,
   confirmAttendanceRequest,
   addToFavoritesRequest,
-  removeFromFavoritesRequest
+  removeFromFavoritesRequest,
+  sendMessageToInscritosRequest
 } from "@/api/events";
 import { getImageUrl } from "@/utils/imageHelpers";
-import { getCurrentUserRequest } from "@/api/users";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { deleteEventRequest } from "@/api/events";
 import { getEventReviewsRequest } from "@/api/reviews";
 import ReviewCard from "@/components/events/ReviewCard";
@@ -82,14 +86,20 @@ const EventDetail = () => {
   const [asistenciaConfirmada, setAsistenciaConfirmada] = useState(false);
   const [isLoadingSubscription, setIsLoadingSubscription] = useState(false);
   const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  // Usar el hook personalizado que cachea la información del usuario
+  const isFromDashboard = location.pathname.startsWith('/dashboard');
+  const { user: currentUser } = useCurrentUser({
+    enabled: isFromDashboard, // Solo cargar si estamos en el dashboard
+  });
+  
   const [codigoConfirmacion, setCodigoConfirmacion] = useState("");
   const [isConfirming, setIsConfirming] = useState(false);
   const [isFavorito, setIsFavorito] = useState(false);
-  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false); 
-
-  // Detectar si viene del dashboard o es vista pública
-  const isFromDashboard = location.pathname.startsWith('/dashboard');
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
+  const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
+  const [messageSubject, setMessageSubject] = useState("");
+  const [messageContent, setMessageContent] = useState("");
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   // Verificar si el evento terminó (fecha_fin < hoy)
   const isEventFinished = evento ? new Date(evento.fecha_fin) < new Date() : false;
@@ -186,28 +196,8 @@ const EventDetail = () => {
     fetchEvento();
   }, [id]);
 
-  useEffect(() =>{
-    // Solo obtener usuario actual si estamos en el dashboard (páginas de usuario registrado)
-    if (!isFromDashboard) {
-      setCurrentUser(null);
-      return;
-    }
-
-    const fetchUser = async () => {
-      try {
-        const res = await getCurrentUserRequest();
-        setCurrentUser(res.data);
-      } catch (e: any) {
-        // Usuario no autenticado - 401 es esperado, no mostrar error
-        const status = e?.response?.status;
-        if (status !== 401) {
-          console.error("Error obteniendo usuario:", e);
-        }
-        setCurrentUser(null);
-      }
-    };
-    fetchUser();
-  }, [isFromDashboard]);
+  // El usuario ya está cargado desde el hook useCurrentUser
+  // No necesitamos un useEffect adicional
 
   
   const formatDate = (dateString: string) => {
@@ -411,7 +401,7 @@ const EventDetail = () => {
     const registered = evento.numero_inscritos || 0;
     const spotsLeft = evento.aforo - registered;
 
-    const isOwner = currentUser?.id === evento?.organizador?.id;
+    const isOwner = effectiveCurrentUser?.id === evento?.organizador?.id;
 
     const handleDelete = async (id: number) => {
       if (!confirm("¿Seguro que quieres eliminar este evento?")) return;
@@ -460,10 +450,43 @@ const EventDetail = () => {
         });
       } finally {
         setIsTogglingFavorite(false);
-      }
-    };
+    }
+  };
 
-    const handleShareEvent = async () => {
+  const handleSendMessage = async () => {
+    if (!id || !evento || !messageSubject.trim() || !messageContent.trim()) {
+      toast({
+        title: "Error",
+        description: "Por favor, completa todos los campos del mensaje.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSendingMessage(true);
+    try {
+      await sendMessageToInscritosRequest(parseInt(id), messageSubject.trim(), messageContent.trim());
+      toast({
+        title: "Mensaje enviado",
+        description: `El mensaje se está enviando a ${evento.inscritos?.length || 0} participante(s).`,
+        variant: "default",
+      });
+      setIsMessageDialogOpen(false);
+      setMessageSubject("");
+      setMessageContent("");
+    } catch (error: any) {
+      console.error('Error al enviar mensaje:', error);
+      toast({
+        title: "Error al enviar mensaje",
+        description: error.response?.data?.detail || "No se pudo enviar el mensaje. Por favor, intenta de nuevo.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const handleShareEvent = async () => {
       if (!id) return;
       
       // Construir la URL completa del evento
@@ -727,7 +750,7 @@ const EventDetail = () => {
                         <ReviewCard
                           key={review.id}
                           review={review}
-                          currentUserId={currentUser?.id}
+                          currentUserId={effectiveCurrentUser?.id}
                         />
                       ))}
                     </div>
@@ -972,6 +995,84 @@ const EventDetail = () => {
               )}
               {isOwner && (
                 <div className="space-y-3 mt-6">
+                  <Dialog open={isMessageDialogOpen} onOpenChange={setIsMessageDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0"
+                        variant="default"
+                      >
+                        <Mail className="mr-2 h-4 w-4" />
+                        Enviar mensaje a inscritos
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[600px]">
+                      <DialogHeader>
+                        <DialogTitle>Enviar mensaje a participantes</DialogTitle>
+                        <DialogDescription>
+                          Escribe un mensaje que se enviará por correo electrónico a todos los participantes inscritos en este evento.
+                          {evento.inscritos && evento.inscritos.length > 0 && (
+                            <span className="block mt-1 font-medium text-foreground">
+                              Se enviará a {evento.inscritos.length} participante(s).
+                            </span>
+                          )}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="subject">Asunto</Label>
+                          <Input
+                            id="subject"
+                            placeholder="Ej: Recordatorio importante sobre el evento"
+                            value={messageSubject}
+                            onChange={(e) => setMessageSubject(e.target.value)}
+                            disabled={isSendingMessage}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="message">Mensaje</Label>
+                          <Textarea
+                            id="message"
+                            placeholder="Escribe tu mensaje aquí..."
+                            value={messageContent}
+                            onChange={(e) => setMessageContent(e.target.value)}
+                            disabled={isSendingMessage}
+                            rows={8}
+                            className="resize-none"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setIsMessageDialogOpen(false);
+                            setMessageSubject("");
+                            setMessageContent("");
+                          }}
+                          disabled={isSendingMessage}
+                        >
+                          Cancelar
+                        </Button>
+                        <Button
+                          onClick={handleSendMessage}
+                          disabled={isSendingMessage || !messageSubject.trim() || !messageContent.trim()}
+                          className="gradient-primary text-white border-0"
+                        >
+                          {isSendingMessage ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Enviando...
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="mr-2 h-4 w-4" />
+                              Enviar mensaje
+                            </>
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                   <Button 
                     className="w-full gradient-primary text-white border-0" 
                     asChild

@@ -566,9 +566,77 @@ class EventoViewSet(viewsets.ModelViewSet):
         # Pasar el request en el contexto para que get_is_favorito funcione correctamente
         serializer = self.get_serializer(eventos_favoritos, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def enviar_mensaje_inscritos(self, request, pk=None):
+        """
+        Permite al organizador del evento enviar un mensaje por email a todos los inscritos.
+        Solo el organizador del evento puede usar este endpoint.
+        """
+        evento = self.get_object()
+        
+        # Verificar que el usuario es el organizador o un admin
+        if not (evento.organizador == request.user or request.user.is_staff):
+            return Response(
+                {'detail': 'Solo el organizador del evento puede enviar mensajes a los inscritos.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        
+        # Validar datos del request
+        subject = request.data.get('subject', '').strip()
+        message = request.data.get('message', '').strip()
+        
+        if not subject:
+            return Response(
+                {'detail': 'El asunto del mensaje es obligatorio.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not message:
+            return Response(
+                {'detail': 'El contenido del mensaje es obligatorio.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Verificar que hay inscritos
+        inscripciones_count = Inscripcion.objects.filter(evento=evento).count()
+        if inscripciones_count == 0:
+            return Response(
+                {'detail': 'No hay participantes inscritos en este evento.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Obtener nombre del organizador
+        organizador_nombre = evento.organizador.get_full_name() or evento.organizador.username
+        
+        # Enviar emails de forma asíncrona usando Celery
+        try:
+            send_message_to_inscritos.delay(
+                evento.id,
+                subject,
+                message,
+                organizador_nombre
+            )
+            
+            return Response(
+                {
+                    'message': f'El mensaje se está enviando a {inscripciones_count} participante(s).',
+                    'total_inscritos': inscripciones_count
+                },
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error al programar envío de mensajes para evento {evento.id}: {str(e)}")
+            return Response(
+                {'detail': 'Error al programar el envío de mensajes. Por favor, intenta de nuevo.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
     def reporte_organizador(self, request, pk=None):
-        """
+        """ 
         Retorna un reporte detallado de asistencia para un evento específico.
         Solo accesible por el organizador del evento.
         """

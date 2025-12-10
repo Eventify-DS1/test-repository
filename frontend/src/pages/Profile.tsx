@@ -11,6 +11,8 @@ import { useNavigate } from "react-router-dom";
 import { getCurrentUserRequest, updateCurrentUserRequest } from "@/api/users";
 import { refreshTokenRequest } from "@/api/auth";
 import { getImageUrl } from "@/utils/imageHelpers";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Usuario {
   id: number;
@@ -30,8 +32,8 @@ interface Usuario {
 
 const Profile = () => {
   const navigate = useNavigate();
-  const [usuario, setUsuario] = useState<Usuario | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { user: usuario, isLoading: loading, refetch: refetchUser } = useCurrentUser();
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [formData, setFormData] = useState({
@@ -43,46 +45,19 @@ const Profile = () => {
     codigo_estudiantil: '',
   });
 
-  const setUserState = (userData: Usuario) => {
-    setUsuario(userData);
-    setFormData({
-      first_name: userData.first_name || '',
-      last_name: userData.last_name || '',
-      email: userData.email || '',
-      carrera: userData.carrera || '',
-      facultad: userData.facultad || '',
-      codigo_estudiantil: userData.codigo_estudiantil || '',
-    });
-  };
-
-  const fetchUsuario = async (isRetry = false) => {
-    try {
-      setLoading(true);
-      const response = await getCurrentUserRequest();
-      setUserState(response.data);
-    } catch (error) {
-      const status = (error as any)?.response?.status;
-      if (status === 401 && !isRetry) {
-        try {
-          await refreshTokenRequest();
-          await fetchUsuario(true);
-          return;
-        } catch (refreshError) {
-          console.error('Error al refrescar token:', refreshError);
-        }
-      }
-
-      console.error('Error al cargar usuario:', error);
-      toast.error('Tu sesión ha expirado. Por favor inicia sesión nuevamente.');
-      navigate('/login');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Actualizar formData cuando el usuario se carga o cambia
   useEffect(() => {
-    fetchUsuario();
-  }, []);
+    if (usuario) {
+      setFormData({
+        first_name: usuario.first_name || '',
+        last_name: usuario.last_name || '',
+        email: usuario.email || '',
+        carrera: usuario.carrera || '',
+        facultad: usuario.facultad || '',
+        codigo_estudiantil: usuario.codigo_estudiantil || '',
+      });
+    }
+  }, [usuario]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -95,7 +70,13 @@ const Profile = () => {
     try {
       const response = await updateCurrentUserRequest(data);
       const updatedUser = response.data?.usuario || response.data;
-      setUserState(updatedUser);
+      
+      // Actualizar el caché de React Query con los nuevos datos
+      queryClient.setQueryData(["currentUser"], updatedUser);
+      
+      // También hacer un refetch para asegurar que tenemos los datos más recientes
+      await refetchUser();
+      
       toast.success(response.data?.message || 'Perfil actualizado exitosamente');
     } catch (error) {
       const status = (error as any)?.response?.status;
@@ -153,8 +134,13 @@ const Profile = () => {
       const formData = new FormData();
       formData.append('foto', file);
 
-      await updateCurrentUserRequest(formData);
-      await fetchUsuario();
+      const response = await updateCurrentUserRequest(formData);
+      const updatedUser = response.data?.usuario || response.data;
+      
+      // Actualizar el caché de React Query
+      queryClient.setQueryData(["currentUser"], updatedUser);
+      await refetchUser();
+      
       toast.success('Foto de perfil actualizada exitosamente');
     } catch (error: any) {
       console.error('Error al actualizar foto:', error);
@@ -177,8 +163,13 @@ const Profile = () => {
     setUploadingPhoto(true);
     try {
       // Enviar null para eliminar la foto
-      await updateCurrentUserRequest({ foto: null });
-      await fetchUsuario();
+      const response = await updateCurrentUserRequest({ foto: null });
+      const updatedUser = response.data?.usuario || response.data;
+      
+      // Actualizar el caché de React Query
+      queryClient.setQueryData(["currentUser"], updatedUser);
+      await refetchUser();
+      
       toast.success('Foto de perfil eliminada exitosamente');
     } catch (error: any) {
       console.error('Error al eliminar foto:', error);

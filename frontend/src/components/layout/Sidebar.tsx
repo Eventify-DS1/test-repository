@@ -1,11 +1,13 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { Home, Search, Plus, FileText, Bell, Star, User, LogOut, Loader2, Key, Calendar, List } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { logoutRequest, getCurrentUserRequest } from "@/api/auth";
+import { logoutRequest } from "@/api/auth";
 import { toast } from "sonner";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useQueryClient } from "@tanstack/react-query";
 
 type MenuItem = {
   icon: LucideIcon;
@@ -30,30 +32,14 @@ const menuItems: MenuItem[] = [
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // Obtener el rol del usuario al cargar el componente
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      try {
-        const response = await getCurrentUserRequest();
-        // Usar rol_data.nombre del serializer
-        setUserRole(response.data.rol_data?.nombre || null);
-      } catch (error) {
-        console.error("Error al obtener rol del usuario:", error);
-        // Si hay error de autenticación, redirigir al login
-        if (error.response?.status === 401) {
-          navigate("/login");
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserRole();
-  }, [navigate]);
+  
+  // Usar el hook personalizado que cachea la información del usuario
+  const { userRole, isLoading, isError } = useCurrentUser({
+    staleTime: 5 * 60 * 1000, // 5 minutos - los datos se consideran frescos por 5 minutos
+    cacheTime: 10 * 60 * 1000, // 10 minutos - los datos permanecen en caché por 10 minutos
+  });
 
   // Filtrar items del menú según el rol
   const filteredMenuItems = menuItems.filter(item => {
@@ -68,6 +54,9 @@ const Sidebar = () => {
     try {
       setIsLoggingOut(true);
       await logoutRequest();
+      // Limpiar el caché del usuario al cerrar sesión
+      queryClient.removeQueries({ queryKey: ["currentUser"] });
+      queryClient.clear(); // Limpiar todo el caché de React Query
       toast.success("Sesión cerrada correctamente");
       navigate("/login");
     } catch (error) {
@@ -78,8 +67,19 @@ const Sidebar = () => {
     }
   };
 
-  // Mostrar loader mientras se carga el rol
-  if (loading) {
+  // Redirigir al login si hay error de autenticación
+  if (isError) {
+    const error = isError as any;
+    if (error?.response?.status === 401) {
+      // Limpiar caché y redirigir
+      queryClient.removeQueries({ queryKey: ["currentUser"] });
+      navigate("/login");
+      return null;
+    }
+  }
+
+  // Mostrar loader mientras se carga el rol (solo en la primera carga)
+  if (isLoading) {
     return (
       <aside className="w-64 border-r bg-muted/30 h-screen sticky top-0 flex flex-col overflow-hidden">
         <div className="flex-1 flex items-center justify-center">
