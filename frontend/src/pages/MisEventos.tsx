@@ -3,10 +3,20 @@ import { useNavigate } from "react-router-dom";
 import Sidebar from "@/components/layout/Sidebar";
 import EventCard from "@/components/events/EventCard";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, Users, Loader2, AlertCircle, History, Star, BarChart3, Download, CheckCircle, XCircle, TrendingUp } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Calendar, Users, Loader2, AlertCircle, History, Star, BarChart3, Download, CheckCircle, XCircle, TrendingUp, Search as SearchIcon, Filter } from "lucide-react";
 import { getImageUrl } from "@/utils/imageHelpers";
+import { getCategoriasRequest } from "@/api/auth";
+import { toast } from "sonner";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell
@@ -66,6 +76,12 @@ interface EventoMapeado {
   isFavorito?: boolean;
 }
 
+// Interface para categorías
+interface Categoria {
+  id: number;
+  nombre: string;
+}
+
 const MisEventos = () => {
   const navigate = useNavigate();
   const [eventosInscritos, setEventosInscritos] = useState<EventoMapeado[]>([]);
@@ -83,6 +99,14 @@ const MisEventos = () => {
   const [errorFavoritos, setErrorFavoritos] = useState<string | null>(null);
   const [errorPasadosInscritos, setErrorPasadosInscritos] = useState<string | null>(null);
   const [errorPasadosCreados, setErrorPasadosCreados] = useState<string | null>(null);
+
+  // Estados para búsqueda y filtros
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState("");
+  const [locationFilter, setLocationFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("date");
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
 
   // Estados para reportes
   const [reportesData, setReportesData] = useState<any>(null);
@@ -131,6 +155,21 @@ const MisEventos = () => {
       isFavorito: evento.is_favorito === true,
     };
   };
+
+  // Cargar categorías
+  useEffect(() => {
+    const fetchCategorias = async () => {
+      try {
+        const categoriasResponse = await getCategoriasRequest();
+        const categoriasData = categoriasResponse.data.results || categoriasResponse.data;
+        setCategorias(Array.isArray(categoriasData) ? categoriasData : []);
+      } catch (error) {
+        console.error('Error al cargar categorías:', error);
+      }
+    };
+
+    fetchCategorias();
+  }, []);
 
   // Cargar eventos inscritos
   useEffect(() => {
@@ -323,6 +362,106 @@ const MisEventos = () => {
   const loadingPasados = loadingPasadosInscritos || loadingPasadosCreados;
   const errorPasados = errorPasadosInscritos || errorPasadosCreados;
 
+  // Función para filtrar eventos según los filtros aplicados
+  const filterEvents = (eventos: EventoMapeado[]): EventoMapeado[] => {
+    return eventos.filter(evento => {
+      // Filtro por búsqueda (nombre)
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        if (!evento.title.toLowerCase().includes(searchLower)) {
+          return false;
+        }
+      }
+
+      // Filtro por categoría
+      if (categoryFilter !== "all") {
+        const categoriaId = parseInt(categoryFilter);
+        if (evento.categoriaId !== categoriaId) {
+          return false;
+        }
+      }
+
+      // Filtro por fecha
+      if (dateFilter && evento.fechaInicio) {
+        const eventoDate = new Date(evento.fechaInicio).toISOString().split('T')[0];
+        if (eventoDate !== dateFilter) {
+          return false;
+        }
+      }
+
+      // Filtro por ubicación
+      if (locationFilter !== "all") {
+        if (evento.location !== locationFilter) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
+  // Función para ordenar eventos
+  const sortEvents = (eventos: EventoMapeado[]): EventoMapeado[] => {
+    const sorted = [...eventos];
+    
+    switch (sortBy) {
+      case "date":
+        // Fecha (más reciente primero)
+        return sorted.sort((a, b) => {
+          const dateA = a.fechaInicio ? new Date(a.fechaInicio).getTime() : 0;
+          const dateB = b.fechaInicio ? new Date(b.fechaInicio).getTime() : 0;
+          return dateB - dateA;
+        });
+      
+      case "popular":
+        // Más popular (más inscritos primero)
+        return sorted.sort((a, b) => b.registered - a.registered);
+      
+      case "capacity":
+        // Capacidad (mayor capacidad primero)
+        return sorted.sort((a, b) => b.capacity - a.capacity);
+      
+      case "name":
+        // Nombre (alfabético)
+        return sorted.sort((a, b) => a.title.localeCompare(b.title));
+      
+      default:
+        return sorted;
+    }
+  };
+
+  // Aplicar filtros y ordenamiento a cada lista
+  const eventosInscritosFiltrados = sortEvents(filterEvents(eventosInscritos));
+  const eventosCreadosFiltrados = sortEvents(filterEvents(eventosCreados));
+  const eventosFavoritosFiltrados = sortEvents(filterEvents(eventosFavoritos));
+  const eventosPasadosInscritosFiltrados = sortEvents(filterEvents(eventosPasadosInscritos));
+  const eventosPasadosCreadosFiltrados = sortEvents(filterEvents(eventosPasadosCreados));
+  const eventosPasadosCombinadosFiltrados = sortEvents(filterEvents(eventosPasadosCombinados));
+
+  // Obtener ubicaciones únicas de todos los eventos
+  const getAllLocations = (): string[] => {
+    const allEventos = [
+      ...eventosInscritos,
+      ...eventosCreados,
+      ...eventosFavoritos,
+      ...eventosPasadosInscritos,
+      ...eventosPasadosCreados
+    ];
+    return Array.from(new Set(allEventos.map(e => e.location).filter(Boolean)));
+  };
+
+  const ubicaciones = getAllLocations();
+
+  // Función para limpiar filtros
+  const clearFilters = () => {
+    setSearchTerm("");
+    setCategoryFilter("all");
+    setDateFilter("");
+    setLocationFilter("all");
+    setSortBy("date");
+    toast.success("Filtros limpiados");
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       <Sidebar />
@@ -335,41 +474,128 @@ const MisEventos = () => {
             </p>
           </div>
 
+          {/* Barra de búsqueda y filtros */}
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2 mb-6">
+                <Filter className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">Filtros de búsqueda</h2>
+              </div>
+              
+              <div className="grid md:grid-cols-5 gap-4">
+                <div className="relative">
+                  <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar por nombre..."
+                    className="pl-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Categoría" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las categorías</SelectItem>
+                    {categorias.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id.toString()}>
+                        {cat.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Input 
+                  type="date" 
+                  placeholder="Fecha" 
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                />
+
+                <Select value={locationFilter} onValueChange={setLocationFilter}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Ubicación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las ubicaciones</SelectItem>
+                    {ubicaciones.map((ubicacion) => (
+                      <SelectItem key={ubicacion} value={ubicacion}>
+                        {ubicacion}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Ordenar por" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">Fecha (más reciente)</SelectItem>
+                    <SelectItem value="popular">Más popular</SelectItem>
+                    <SelectItem value="capacity">Capacidad</SelectItem>
+                    <SelectItem value="name">Nombre (A-Z)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex justify-end mt-4 gap-2">
+                <Button
+                  variant="outline"
+                  onClick={clearFilters}
+                >
+                  Limpiar filtros
+                </Button>
+                <Button 
+                  className="gradient-primary text-white border-0"
+                  onClick={() => {
+                    toast.success("Filtros aplicados");
+                  }}
+                >
+                  <SearchIcon className="mr-2 h-4 w-4" />
+                  Buscar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           <Tabs defaultValue="inscritos" className="w-full">
             <TabsList className="grid w-full max-w-4xl grid-cols-5 mb-6">
               <TabsTrigger value="inscritos" className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
                 Inscritos
-                {eventosInscritos.length > 0 && (
+                {eventosInscritosFiltrados.length > 0 && (
                   <span className="ml-1 px-2 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">
-                    {eventosInscritos.length}
+                    {eventosInscritosFiltrados.length}
                   </span>
                 )}
               </TabsTrigger>
               <TabsTrigger value="creados" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Creados
-                {eventosCreados.length > 0 && (
+                {eventosCreadosFiltrados.length > 0 && (
                   <span className="ml-1 px-2 py-0.5 text-xs bg-green-100 text-green-700 rounded-full">
-                    {eventosCreados.length}
+                    {eventosCreadosFiltrados.length}
                   </span>
                 )}
               </TabsTrigger>
               <TabsTrigger value="favoritos" className="flex items-center gap-2">
                 <Star className="h-4 w-4" />
                 Favoritos
-                {eventosFavoritos.length > 0 && (
+                {eventosFavoritosFiltrados.length > 0 && (
                   <span className="ml-1 px-2 py-0.5 text-xs bg-yellow-100 text-yellow-700 rounded-full">
-                    {eventosFavoritos.length}
+                    {eventosFavoritosFiltrados.length}
                   </span>
                 )}
               </TabsTrigger>
               <TabsTrigger value="historial" className="flex items-center gap-2">
                 <History className="h-4 w-4" />
                 Historial
-                {eventosPasadosCombinados.length > 0 && (
+                {eventosPasadosCombinadosFiltrados.length > 0 && (
                   <span className="ml-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded-full">
-                    {eventosPasadosCombinados.length}
+                    {eventosPasadosCombinadosFiltrados.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -405,20 +631,32 @@ const MisEventos = () => {
                         Reintentar
                       </Button>
                     </div>
-                  ) : eventosInscritos.length === 0 ? (
+                  ) : eventosInscritosFiltrados.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12">
                       <Calendar className="h-16 w-16 text-gray-300 mb-4" />
-                      <p className="text-gray-600 text-lg mb-2">No tienes eventos inscritos</p>
-                      <p className="text-gray-500 text-sm mb-4">
-                        Explora eventos y únete a los que te interesen
+                      <p className="text-gray-600 text-lg mb-2">
+                        {eventosInscritos.length === 0 
+                          ? "No tienes eventos inscritos"
+                          : "No se encontraron eventos con los filtros aplicados"}
                       </p>
-                      <Button onClick={() => navigate('/dashboard/search')}>
-                        Buscar Eventos
-                      </Button>
+                      <p className="text-gray-500 text-sm mb-4">
+                        {eventosInscritos.length === 0
+                          ? "Explora eventos y únete a los que te interesen"
+                          : "Intenta cambiar los filtros de búsqueda"}
+                      </p>
+                      {eventosInscritos.length === 0 ? (
+                        <Button onClick={() => navigate('/dashboard/search')}>
+                          Buscar Eventos
+                        </Button>
+                      ) : (
+                        <Button variant="outline" onClick={clearFilters}>
+                          Limpiar filtros
+                        </Button>
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {eventosInscritos.map((evento) => (
+                      {eventosInscritosFiltrados.map((evento) => (
                         <EventCard
                           key={evento.id}
                           id={evento.id}
@@ -471,20 +709,32 @@ const MisEventos = () => {
                         Reintentar
                       </Button>
                     </div>
-                  ) : eventosCreados.length === 0 ? (
+                  ) : eventosCreadosFiltrados.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12">
                       <Users className="h-16 w-16 text-gray-300 mb-4" />
-                      <p className="text-gray-600 text-lg mb-2">No has creado ningún evento</p>
-                      <p className="text-gray-500 text-sm mb-4">
-                        Crea tu primer evento y compártelo con la comunidad
+                      <p className="text-gray-600 text-lg mb-2">
+                        {eventosCreados.length === 0 
+                          ? "No has creado ningún evento"
+                          : "No se encontraron eventos con los filtros aplicados"}
                       </p>
-                      <Button onClick={() => navigate('/dashboard/create')}>
-                        Crear Evento
-                      </Button>
+                      <p className="text-gray-500 text-sm mb-4">
+                        {eventosCreados.length === 0
+                          ? "Crea tu primer evento y compártelo con la comunidad"
+                          : "Intenta cambiar los filtros de búsqueda"}
+                      </p>
+                      {eventosCreados.length === 0 ? (
+                        <Button onClick={() => navigate('/dashboard/create')}>
+                          Crear Evento
+                        </Button>
+                      ) : (
+                        <Button variant="outline" onClick={clearFilters}>
+                          Limpiar filtros
+                        </Button>
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {eventosCreados.map((evento) => (
+                      {eventosCreadosFiltrados.map((evento) => (
                         <EventCard
                           key={evento.id}
                           id={evento.id}
@@ -537,17 +787,28 @@ const MisEventos = () => {
                         Reintentar
                       </Button>
                     </div>
-                  ) : eventosFavoritos.length === 0 ? (
+                  ) : eventosFavoritosFiltrados.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12">
                       <Star className="h-16 w-16 text-gray-300 mb-4" />
-                      <p className="text-gray-600 text-lg mb-2">No tienes eventos favoritos</p>
-                      <p className="text-gray-500 text-sm">
-                        Marca eventos como favoritos para encontrarlos fácilmente
+                      <p className="text-gray-600 text-lg mb-2">
+                        {eventosFavoritos.length === 0 
+                          ? "No tienes eventos favoritos"
+                          : "No se encontraron eventos con los filtros aplicados"}
                       </p>
+                      <p className="text-gray-500 text-sm mb-4">
+                        {eventosFavoritos.length === 0
+                          ? "Marca eventos como favoritos para encontrarlos fácilmente"
+                          : "Intenta cambiar los filtros de búsqueda"}
+                      </p>
+                      {eventosFavoritos.length > 0 && (
+                        <Button variant="outline" onClick={clearFilters}>
+                          Limpiar filtros
+                        </Button>
+                      )}
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {eventosFavoritos.map((evento) => (
+                      {eventosFavoritosFiltrados.map((evento) => (
                         <EventCard
                           key={evento.id}
                           id={evento.id}
@@ -600,24 +861,35 @@ const MisEventos = () => {
                         Reintentar
                       </Button>
                     </div>
-                  ) : eventosPasadosCombinados.length === 0 ? (
+                  ) : eventosPasadosCombinadosFiltrados.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12">
                       <History className="h-16 w-16 text-gray-300 mb-4" />
-                      <p className="text-gray-600 text-lg mb-2">No hay eventos pasados</p>
-                      <p className="text-gray-500 text-sm">
-                        Los eventos que finalicen aparecerán aquí
+                      <p className="text-gray-600 text-lg mb-2">
+                        {eventosPasadosCombinados.length === 0 
+                          ? "No hay eventos pasados"
+                          : "No se encontraron eventos con los filtros aplicados"}
                       </p>
+                      <p className="text-gray-500 text-sm mb-4">
+                        {eventosPasadosCombinados.length === 0
+                          ? "Los eventos que finalicen aparecerán aquí"
+                          : "Intenta cambiar los filtros de búsqueda"}
+                      </p>
+                      {eventosPasadosCombinados.length > 0 && (
+                        <Button variant="outline" onClick={clearFilters}>
+                          Limpiar filtros
+                        </Button>
+                      )}
                     </div>
                   ) : (
                     <div>
-                      {eventosPasadosInscritos.length > 0 && (
+                      {eventosPasadosInscritosFiltrados.length > 0 && (
                         <div className="mb-8">
                           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                             <Calendar className="h-5 w-5 text-blue-600" />
-                            Eventos Pasados en los que estuve inscrito ({eventosPasadosInscritos.length})
+                            Eventos Pasados en los que estuve inscrito ({eventosPasadosInscritosFiltrados.length})
                           </h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {eventosPasadosInscritos.map((evento) => (
+                            {eventosPasadosInscritosFiltrados.map((evento) => (
                               <EventCard
                                 key={evento.id}
                                 id={evento.id}
@@ -642,14 +914,14 @@ const MisEventos = () => {
                         </div>
                       )}
 
-                      {eventosPasadosCreados.length > 0 && (
+                      {eventosPasadosCreadosFiltrados.length > 0 && (
                         <div>
                           <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                             <Users className="h-5 w-5 text-green-600" />
-                            Eventos Pasados que creé ({eventosPasadosCreados.length})
+                            Eventos Pasados que creé ({eventosPasadosCreadosFiltrados.length})
                           </h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {eventosPasadosCreados.map((evento) => (
+                            {eventosPasadosCreadosFiltrados.map((evento) => (
                               <EventCard
                                 key={evento.id}
                                 id={evento.id}

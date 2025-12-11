@@ -48,14 +48,14 @@ const Profile = () => {
   // Actualizar formData cuando el usuario se carga o cambia
   useEffect(() => {
     if (usuario) {
-      setFormData({
+    setFormData({
         first_name: usuario.first_name || '',
         last_name: usuario.last_name || '',
         email: usuario.email || '',
         carrera: usuario.carrera || '',
         facultad: usuario.facultad || '',
         codigo_estudiantil: usuario.codigo_estudiantil || '',
-      });
+    });
     }
   }, [usuario]);
 
@@ -244,7 +244,7 @@ const Profile = () => {
                     asChild
                   >
                     <span>
-                      <Camera className="h-4 w-4" />
+                  <Camera className="h-4 w-4" />
                       {uploadingPhoto ? 'Subiendo...' : 'Cambiar foto'}
                     </span>
                   </Button>
@@ -264,7 +264,7 @@ const Profile = () => {
                     disabled={uploadingPhoto}
                   >
                     Eliminar
-                  </Button>
+                </Button>
                 )}
               </div>
             </CardContent>

@@ -135,6 +135,27 @@ export const sendMessageToInscritosRequest = (eventId, subject, message) => {
     });
 };
 
+// Obtener eventos futuros creados por un usuario específico
+export const getUserFutureCreatedEventsRequest = (userId) => {
+    return apiClient.get('/events-utils/eventos/eventos_futuros_por_usuario/', {
+        params: { user_id: userId }
+    });
+};
+
+// Obtener eventos donde ambos usuarios están inscritos (futuros)
+export const getSharedSubscribedEventsRequest = (userId) => {
+    return apiClient.get('/events-utils/eventos/eventos_compartidos_inscritos/', {
+        params: { user_id: userId }
+    });
+};
+
+// Obtener eventos pasados donde ambos usuarios asistieron
+export const getSharedAttendedEventsRequest = (userId) => {
+    return apiClient.get('/events-utils/eventos/eventos_compartidos_asistidos/', {
+        params: { user_id: userId }
+    });
+};
+
 // ============================================================================
 // REPORTES PARA ORGANIZADORES
 // ============================================================================

@@ -11,7 +11,11 @@ const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { user, isLoading } = useCurrentUser();
+  // Usar el hook optimizado con caché extendido para evitar recargas innecesarias
+  const { user, isLoading, isAuthenticated } = useCurrentUser({
+    staleTime: 5 * 60 * 1000, // 5 minutos - los datos se consideran frescos por 5 minutos
+    cacheTime: 10 * 60 * 1000, // 10 minutos - los datos permanecen en caché por 10 minutos
+  });
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const navLinks = [
@@ -25,12 +29,10 @@ const Header = () => {
       setIsLoggingOut(true);
       await logoutRequest();
       // Limpiar el caché del usuario al cerrar sesión
-      queryClient.removeQueries({ queryKey: ["currentUser"] });
-      queryClient.clear();
+      queryClient.setQueryData(["currentUser"], null); // Establecer explícitamente como null (no autenticado)
+      queryClient.invalidateQueries({ queryKey: ["currentUser"] }); // Invalidar para forzar actualización
       toast.success("Sesión cerrada correctamente");
       navigate("/");
-      // Recargar la página para actualizar el estado
-      window.location.reload();
     } catch (error) {
       console.error("Error al cerrar sesión:", error);
       toast.error("No se pudo cerrar la sesión");
@@ -68,7 +70,7 @@ const Header = () => {
         <div className="flex items-center gap-3 flex-shrink-0">
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          ) : user ? (
+          ) : isAuthenticated && user ? (
             <>
               <Button variant="ghost" asChild className="hidden sm:flex">
                 <Link to="/dashboard">Ir al Dashboard</Link>

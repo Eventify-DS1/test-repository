@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { registerRequest, getRolesRequest, loginRequest, resendMFACodeRequest } from '../api/auth.js';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +33,7 @@ function RegisterPage() {
   const [sessionId, setSessionId] = useState(null);
   const [resendingCode, setResendingCode] = useState(false);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Cargar roles al montar el componente
   useEffect(() => {
@@ -129,6 +131,8 @@ function RegisterPage() {
         }
       } else {
         // Si no requiere MFA (no debería pasar normalmente), ir al dashboard
+        // Invalidar el caché de currentUser para que se actualice
+        queryClient.invalidateQueries({ queryKey: ["currentUser"] });
         navigate('/dashboard');
       }
     } catch (err) {
@@ -224,7 +228,8 @@ function RegisterPage() {
       // Usar el endpoint de login con el código MFA
       const response = await loginRequest(null, null, mfaCode, sessionId);
       
-      // Si el login es exitoso, navegar al dashboard
+      // Si el login es exitoso, invalidar el caché de currentUser y navegar al dashboard
+      queryClient.invalidateQueries({ queryKey: ["currentUser"] });
       navigate('/dashboard');
     } catch (err) {
       console.error(err);

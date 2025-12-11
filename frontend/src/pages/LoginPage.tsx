@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { loginRequest, resendMFACodeRequest, passwordResetRequest, passwordResetVerify, passwordResetConfirm } from '../api/auth.js';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,6 +33,7 @@ function LoginPage() {
   const [resetLoading, setResetLoading] = useState(false);
   
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,7 +56,8 @@ function LoginPage() {
           setError(null);
         }
       } else {
-        // Login exitoso
+        // Login exitoso - invalidar el caché de currentUser para que se actualice
+        queryClient.invalidateQueries({ queryKey: ["currentUser"] });
         navigate('/dashboard');
       }
     } catch (err) {

@@ -96,7 +96,7 @@ const EventDetail = () => {
   const effectiveCurrentUser = isFromDashboard ? currentUser : null;
   
   const [codigoConfirmacion, setCodigoConfirmacion] = useState("");
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false); 
   const [isFavorito, setIsFavorito] = useState(false);
   const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
   const [isMessageDialogOpen, setIsMessageDialogOpen] = useState(false);
@@ -1050,14 +1050,14 @@ const EventDetail = () => {
                         className="w-full gradient-primary text-white border-0" 
                         asChild
                       >
-                        <Link to={`/dashboard/eventos/editar/${evento.id}`}>Editar evento</Link>
-                      </Button>
-                      <Button
+                    <Link to={`/dashboard/eventos/editar/${evento.id}`}>Editar evento</Link>
+                    </Button>
+                    <Button
                         className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                         variant="destructive"
-                        onClick={() => handleDelete(evento.id)}
-                      >
-                        Borrar evento
+                    onClick={() => handleDelete(evento.id)}
+                    >
+                      Borrar evento
                       </Button>
                     </>
                   )}
@@ -1068,16 +1068,16 @@ const EventDetail = () => {
                       </p>
                     </div>
                   )}
-                </div>
-              )}
+                      </div>
+                    )}
 
 
               {evento.inscritos && evento.inscritos.length > 0 ? (
                 <div className="pt-4 border-t">
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-sm font-semibold">
-                      Asistentes inscritos ({evento.inscritos.length})
-                    </p>
+                    Asistentes inscritos ({evento.inscritos.length})
+                  </p>
                     {isOwner && (
                       <Button
                         onClick={handleExportPDF}
@@ -1113,7 +1113,7 @@ const EventDetail = () => {
                               onClick={() => navigate(isFromDashboard ? `/dashboard/user/${inscrito.id}` : `/user/${inscrito.id}`)}
                               className="text-sm font-medium truncate hover:text-primary transition-colors cursor-pointer text-left"
                             >
-                              {inscrito.nombre_completo || inscrito.username}
+                            {inscrito.nombre_completo || inscrito.username}
                             </button>
                             {inscrito.asistencia_confirmada && (
                               <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
@@ -1148,12 +1148,12 @@ const EventDetail = () => {
   if (isFromDashboard) {
     return (
       <>
-        <div className="flex min-h-screen w-full">
-          <Sidebar />
-          <main className="flex-1">
-            <EventContent />
-          </main>
-        </div>
+      <div className="flex min-h-screen w-full">
+        <Sidebar />
+        <main className="flex-1">
+          <EventContent />
+        </main>
+      </div>
         {/* Dialog fuera de EventContent para evitar re-renderizados */}
         <Dialog 
           open={isMessageDialogOpen} 
@@ -1240,11 +1240,11 @@ const EventDetail = () => {
 
   return (
     <>
-      <div className="min-h-screen flex flex-col">
-        <Header />
-        <EventContent />
-        <Footer />
-      </div>
+    <div className="min-h-screen flex flex-col">
+      <Header />
+      <EventContent />
+      <Footer />
+    </div>
       {/* Dialog fuera de EventContent para evitar re-renderizados */}
       <Dialog 
         open={isMessageDialogOpen} 

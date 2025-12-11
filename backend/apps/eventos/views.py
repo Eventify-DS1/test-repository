@@ -484,6 +484,138 @@ class EventoViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(eventos_pasados, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def eventos_futuros_por_usuario(self, request):
+        """
+        Retorna los eventos futuros creados por un usuario específico.
+        Accesible públicamente.
+        Parámetros: user_id (query param)
+        """
+        from django.utils import timezone
+        from apps.usuarios.models import Usuario
+        
+        ahora = timezone.now()
+        user_id = request.query_params.get('user_id')
+        
+        if not user_id:
+            return Response(
+                {'detail': 'Se requiere el parámetro user_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            usuario = Usuario.objects.get(id=user_id)
+        except Usuario.DoesNotExist:
+            return Response(
+                {'detail': 'Usuario no encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Obtener eventos futuros creados por el usuario
+        eventos = Evento.objects.filter(
+            organizador=usuario,
+            fecha_fin__gte=ahora
+        ).order_by('fecha_inicio')
+        
+        serializer = self.get_serializer(eventos, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eventos_compartidos_inscritos(self, request):
+        """
+        Retorna los eventos donde tanto el usuario autenticado como otro usuario están inscritos.
+        Parámetros: user_id (query param) - ID del otro usuario
+        """
+        from django.utils import timezone
+        from apps.usuarios.models import Usuario
+        
+        ahora = timezone.now()
+        user_id = request.query_params.get('user_id')
+        
+        if not user_id:
+            return Response(
+                {'detail': 'Se requiere el parámetro user_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            otro_usuario = Usuario.objects.get(id=user_id)
+        except Usuario.DoesNotExist:
+            return Response(
+                {'detail': 'Usuario no encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Obtener eventos donde ambos están inscritos y aún no han finalizado
+        inscripciones_usuario_actual = Inscripcion.objects.filter(
+            usuario=request.user
+        ).values_list('evento_id', flat=True)
+        
+        inscripciones_otro_usuario = Inscripcion.objects.filter(
+            usuario=otro_usuario
+        ).values_list('evento_id', flat=True)
+        
+        # Eventos donde ambos están inscritos
+        eventos_compartidos_ids = set(inscripciones_usuario_actual) & set(inscripciones_otro_usuario)
+        
+        # Filtrar eventos futuros
+        eventos_compartidos = Evento.objects.filter(
+            id__in=eventos_compartidos_ids,
+            fecha_fin__gte=ahora
+        ).order_by('fecha_inicio')
+        
+        serializer = self.get_serializer(eventos_compartidos, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def eventos_compartidos_asistidos(self, request):
+        """
+        Retorna los eventos pasados donde tanto el usuario autenticado como otro usuario asistieron.
+        Parámetros: user_id (query param) - ID del otro usuario
+        """
+        from django.utils import timezone
+        from apps.usuarios.models import Usuario
+        
+        ahora = timezone.now()
+        user_id = request.query_params.get('user_id')
+        
+        if not user_id:
+            return Response(
+                {'detail': 'Se requiere el parámetro user_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            otro_usuario = Usuario.objects.get(id=user_id)
+        except Usuario.DoesNotExist:
+            return Response(
+                {'detail': 'Usuario no encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Obtener eventos donde ambos confirmaron asistencia
+        inscripciones_usuario_actual = Inscripcion.objects.filter(
+            usuario=request.user,
+            asistencia_confirmada=True
+        ).values_list('evento_id', flat=True)
+        
+        inscripciones_otro_usuario = Inscripcion.objects.filter(
+            usuario=otro_usuario,
+            asistencia_confirmada=True
+        ).values_list('evento_id', flat=True)
+        
+        # Eventos donde ambos asistieron
+        eventos_compartidos_ids = set(inscripciones_usuario_actual) & set(inscripciones_otro_usuario)
+        
+        # Filtrar eventos pasados
+        eventos_compartidos = Evento.objects.filter(
+            id__in=eventos_compartidos_ids,
+            fecha_fin__lt=ahora
+        ).order_by('-fecha_fin')
+        
+        serializer = self.get_serializer(eventos_compartidos, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
     @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
     def eventos_pasados_creados(self, request):
         """

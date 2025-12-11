@@ -255,7 +255,8 @@ class PerfilPublicoSerializer(serializers.ModelSerializer):
             'facultad',
             'foto',
             'rol_data',
-            'date_joined',  # Fecha de registro
+            'date_joined',
+            'email',
         ]
         read_only_fields = fields
     

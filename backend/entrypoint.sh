@@ -2,8 +2,38 @@
 set -e
 
 echo "Esperando a que la base de datos esté lista..."
-python manage.py migrate --noinput
 
-echo "Migraciones aplicadas. Iniciando servidor..."
+# Función para verificar la conexión a la base de datos
+wait_for_db() {
+    max_attempts=30
+    attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        echo "Intento $attempt/$max_attempts: Verificando conexión a la base de datos..."
+        if python manage.py check --database default 2>/dev/null; then
+            echo "✓ Conexión a la base de datos exitosa"
+            return 0
+        fi
+        echo "✗ Conexión fallida, esperando 2 segundos..."
+        sleep 2
+        attempt=$((attempt + 1))
+    done
+    
+    echo "⚠ Advertencia: No se pudo verificar la conexión a la base de datos después de $max_attempts intentos"
+    echo "Continuando con las migraciones..."
+    return 1
+}
+
+# Intentar esperar a la base de datos (no crítico si falla)
+wait_for_db || true
+
+# Ejecutar migraciones
+echo "Aplicando migraciones..."
+python manage.py migrate --noinput || {
+    echo "⚠ Error al aplicar migraciones. Esto puede ser normal si la base de datos aún no está lista."
+    echo "El servicio continuará y reintentará en el próximo ciclo."
+}
+
+echo "Migraciones completadas. Iniciando servicio..."
 exec "$@"
 
