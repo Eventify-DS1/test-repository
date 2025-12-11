@@ -3,7 +3,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework import serializers
-from django.utils import timezone 
+from django.utils import timezone
+from django.db import models
 from .models import Evento, CategoriaEvento, Inscripcion, Reseña
 from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer, ReseñaSerializer
 from .tasks import send_email_task, send_message_to_inscritos
@@ -69,6 +70,86 @@ class EventoViewSet(viewsets.ModelViewSet):
     ordering_fields = ['fecha_inicio', 'fecha_fin', 'titulo', 'aforo']
     ordering = ['fecha_inicio']  # Orden por defecto (por fecha de inicio)
 
+    def get_queryset(self):
+        """
+        Permite filtrar eventos por fecha_fin y fecha_inicio usando operadores __gt, __lte, __gte
+        """
+        queryset = super().get_queryset()
+        
+        # Filtrar eventos futuros (fecha_fin > ahora)
+        fecha_fin_gt = self.request.query_params.get('fecha_fin__gt')
+        if fecha_fin_gt:
+            from django.utils import timezone
+            try:
+                # Si es una fecha ISO string, convertirla
+                if isinstance(fecha_fin_gt, str):
+                    from datetime import datetime
+                    fecha = datetime.fromisoformat(fecha_fin_gt.replace('Z', '+00:00'))
+                    queryset = queryset.filter(fecha_fin__gt=fecha)
+                else:
+                    queryset = queryset.filter(fecha_fin__gt=fecha_fin_gt)
+            except (ValueError, TypeError):
+                pass  # Ignorar si el formato es inválido
+        
+        # Filtrar eventos pasados (fecha_fin <= ahora)
+        fecha_fin_lte = self.request.query_params.get('fecha_fin__lte')
+        if fecha_fin_lte:
+            from django.utils import timezone
+            try:
+                # Si es una fecha ISO string, convertirla
+                if isinstance(fecha_fin_lte, str):
+                    from datetime import datetime
+                    fecha = datetime.fromisoformat(fecha_fin_lte.replace('Z', '+00:00'))
+                    queryset = queryset.filter(fecha_fin__lte=fecha)
+                else:
+                    queryset = queryset.filter(fecha_fin__lte=fecha_fin_lte)
+            except (ValueError, TypeError):
+                pass  # Ignorar si el formato es inválido
+        
+        # Filtrar por fecha_inicio >= fecha específica
+        fecha_inicio_gte = self.request.query_params.get('fecha_inicio__gte')
+        if fecha_inicio_gte:
+            try:
+                if isinstance(fecha_inicio_gte, str):
+                    from datetime import datetime
+                    fecha = datetime.fromisoformat(fecha_inicio_gte.replace('Z', '+00:00'))
+                    queryset = queryset.filter(fecha_inicio__gte=fecha)
+                else:
+                    queryset = queryset.filter(fecha_inicio__gte=fecha_inicio_gte)
+            except (ValueError, TypeError):
+                pass
+        
+        # Filtrar por fecha_inicio <= fecha específica
+        fecha_inicio_lte = self.request.query_params.get('fecha_inicio__lte')
+        if fecha_inicio_lte:
+            try:
+                if isinstance(fecha_inicio_lte, str):
+                    from datetime import datetime
+                    fecha = datetime.fromisoformat(fecha_inicio_lte.replace('Z', '+00:00'))
+                    queryset = queryset.filter(fecha_inicio__lte=fecha)
+                else:
+                    queryset = queryset.filter(fecha_inicio__lte=fecha_inicio_lte)
+            except (ValueError, TypeError):
+                pass
+        
+        # Filtrar por inscripción del usuario autenticado
+        if self.request.user.is_authenticated:
+            inscrito = self.request.query_params.get('inscrito')
+            if inscrito is not None:
+                # Obtener IDs de eventos donde el usuario está inscrito
+                inscripciones = Inscripcion.objects.filter(
+                    usuario=self.request.user
+                ).values_list('evento_id', flat=True)
+                
+                if inscrito.lower() == 'true' or inscrito == '1':
+                    # Solo eventos donde el usuario está inscrito
+                    queryset = queryset.filter(id__in=inscripciones)
+                elif inscrito.lower() == 'false' or inscrito == '0':
+                    # Solo eventos donde el usuario NO está inscrito
+                    queryset = queryset.exclude(id__in=inscripciones)
+        
+        return queryset
+
     @action(detail=False, methods=['get'], permission_classes=[AllowAny])
     def estadisticas(self, request):
         """
@@ -82,10 +163,10 @@ class EventoViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         """
         Define permisos según la acción:
-        - list, retrieve, estadisticas: Abierto para cualquiera.
+        - list, retrieve, estadisticas, eventos_populares: Abierto para cualquiera.
         - create, update, destroy: Permisos por defecto (requiere autenticación).
         """
-        if self.action in ['list', 'retrieve', 'estadisticas']:
+        if self.action in ['list', 'retrieve', 'estadisticas', 'eventos_populares']:
             return [AllowAny()]
         # Para create, update, destroy se usan los permisos por defecto
         return [IsAuthenticated()] 
@@ -352,8 +433,8 @@ class EventoViewSet(viewsets.ModelViewSet):
         Retorna los eventos más populares (con más inscritos).
         Ordenados por número de inscritos descendente.
         """
-        # Obtener todos los eventos
-        eventos = Evento.objects.all()
+        ahora = timezone.now()
+        eventos = Evento.objects.filter(fecha_fin__gt=ahora)
         
         # Ordenar por número de inscritos (descendente)
         eventos_ordenados = sorted(
