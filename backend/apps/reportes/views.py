@@ -3,10 +3,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from django.db.models.functions import TruncMonth
-from django.db.models import Count, F
+from django.db.models import Count, F, Avg, Q 
 from django.http import HttpResponse
 from django.utils import timezone
-from apps.eventos.models import Evento, CategoriaEvento
+from apps.eventos.models import Evento, CategoriaEvento, Reseña
 import io
 import csv
 from openpyxl import Workbook
@@ -648,3 +648,88 @@ def export_pdf(request):
     response['Content-Disposition'] = f'attachment; filename="reporte_{tipo}.pdf"'
     
     return response
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def rating_promedio(request):
+    """
+    Retorna estadísticas completas sobre los ratings de eventos:
+    - Promedio global de todos los ratings
+    - Total de reseñas
+    - Distribución por cantidad de estrellas (1-5)
+    - Rating promedio por categoría
+    - Eventos mejor valorados (top 5)
+    """
+    if not request.user.is_staff:
+        raise PermissionDenied("Solo administradores pueden acceder a los reportes.")
+    
+    # Calcular promedio global y total de reseñas
+    reseñas_stats = Reseña.objects.filter(
+        puntuacion__isnull=False
+    ).aggregate(
+        promedio=Avg('puntuacion'),
+        total=Count('id')
+    )
+    
+    promedio_global = round(reseñas_stats['promedio'], 2) if reseñas_stats['promedio'] else 0
+    total_reseñas = reseñas_stats['total']
+    
+    # Distribución por estrellas (1-5)
+    distribucion = []
+    for estrellas in range(1, 6):
+        cantidad = Reseña.objects.filter(puntuacion=estrellas).count()
+        distribucion.append({
+            'estrellas': estrellas,
+            'cantidad': cantidad
+        })
+    
+    # Rating promedio por categoría
+    rating_por_categoria = (
+        Reseña.objects
+        .filter(puntuacion__isnull=False)
+        .values('evento__categoria__nombre')
+        .annotate(
+            promedio=Avg('puntuacion'),
+            total_reseñas=Count('id')
+        )
+        .order_by('-promedio')
+    )
+    
+    por_categoria = [
+        {
+            'categoria': r['evento__categoria__nombre'] or 'Sin categoría',
+            'promedio': round(r['promedio'], 2),
+            'total_reseñas': r['total_reseñas']
+        }
+        for r in rating_por_categoria
+    ]
+    
+    # Top 5 eventos mejor valorados (con al menos 3 reseñas para ser significativo)
+    mejor_valorados = (
+        Evento.objects
+        .annotate(
+            rating_promedio=Avg('reseñas__puntuacion'),
+            num_reseñas=Count('reseñas', filter=Q(reseñas__puntuacion__isnull=False))
+        )
+        .filter(num_reseñas__gte=3)  # Al menos 3 reseñas
+        .order_by('-rating_promedio')[:5]
+        .values('id', 'titulo', 'rating_promedio', 'num_reseñas')
+    )
+    
+    mejor_valorados_list = [
+        {
+            'id': e['id'],
+            'titulo': e['titulo'],
+            'rating_promedio': round(e['rating_promedio'], 2),
+            'num_reseñas': e['num_reseñas']
+        }
+        for e in mejor_valorados
+    ]
+    
+    return Response({
+        'promedio_global': promedio_global,
+        'total_reseñas': total_reseñas,
+        'distribucion': distribucion,
+        'por_categoria': por_categoria,
+        'mejor_valorados': mejor_valorados_list
+    })

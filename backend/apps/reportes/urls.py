@@ -1,4 +1,3 @@
-
 from django.urls import path
 from . import views
 
@@ -9,6 +8,7 @@ urlpatterns = [
     path("eventos-por-categoria/", views.eventos_por_categoria, name="eventos_por_categoria"),
     path("eventos-por-lugar/", views.eventos_por_lugar, name="eventos_por_lugar"),
     path("eventos-por-estado/", views.eventos_por_estado, name="eventos_por_estado"),
+    path("rating-promedio/", views.rating_promedio, name="rating_promedio"),
 
     # Endpoints de exportación
     path("export/csv/", views.export_csv, name="export_csv"),

@@ -42,6 +42,14 @@ export const getEventosPorEstado = () => {
   return apiClient.get("/reportes/eventos-por-estado/");
 };
 
+/**
+ * Obtiene el rating promedio y estadísticas de reseñas
+ * @returns {Promise} Promesa con los datos
+ */
+export const getRatingPromedio = () => {
+  return apiClient.get("/reportes/rating-promedio/");
+};
+
 // ============================================================================
 // FUNCIONES DE EXPORTACIÓN
 // ============================================================================
