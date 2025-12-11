@@ -136,6 +136,20 @@ function RegisterPage() {
       console.error('Datos de respuesta:', err.response?.data);
       const errorData = err.response?.data;
       
+      // Mapeo de nombres de campos a español
+      const fieldNames = {
+        'username': 'Nombre de usuario',
+        'email': 'Correo electrónico',
+        'password': 'Contraseña',
+        'password2': 'Confirmación de contraseña',
+        'rol': 'Rol',
+        'codigo_estudiantil': 'Código estudiantil',
+        'first_name': 'Nombre',
+        'last_name': 'Apellido',
+        'carrera': 'Carrera',
+        'facultad': 'Facultad'
+      };
+      
       // Manejar errores de validación del serializer
       if (errorData) {
         // Buscar el primer error disponible
@@ -143,25 +157,58 @@ function RegisterPage() {
         for (const field of errorFields) {
           if (errorData[field]) {
             const errorMsg = Array.isArray(errorData[field]) ? errorData[field][0] : errorData[field];
-            setError(`${field.charAt(0).toUpperCase() + field.slice(1)}: ${errorMsg}`);
+            const fieldName = fieldNames[field] || field;
+            
+            // Mejorar mensajes específicos
+            let friendlyMessage = errorMsg;
+            
+            // Mensajes específicos para casos comunes
+            if (errorMsg.includes('already exists') || errorMsg.includes('ya existe') || errorMsg.includes('unique')) {
+              if (field === 'codigo_estudiantil') {
+                friendlyMessage = 'Este código estudiantil ya está registrado. Por favor, verifica tu código o contacta al administrador.';
+              } else if (field === 'email') {
+                friendlyMessage = 'Este correo electrónico ya está registrado. Por favor, usa otro correo o inicia sesión.';
+              } else if (field === 'username') {
+                friendlyMessage = 'Este nombre de usuario ya está en uso. Por favor, elige otro nombre.';
+              } else {
+                friendlyMessage = `Este ${fieldName.toLowerCase()} ya está en uso.`;
+              }
+            } else if (errorMsg.includes('required') || errorMsg.includes('obligatorio')) {
+              friendlyMessage = `El campo ${fieldName.toLowerCase()} es obligatorio.`;
+            } else if (errorMsg.includes('invalid') || errorMsg.includes('inválido')) {
+              friendlyMessage = `El ${fieldName.toLowerCase()} ingresado no es válido.`;
+            } else if (errorMsg.includes('too short') || errorMsg.includes('muy corto')) {
+              friendlyMessage = `El ${fieldName.toLowerCase()} es demasiado corto.`;
+            } else if (errorMsg.includes('too long') || errorMsg.includes('muy largo')) {
+              friendlyMessage = `El ${fieldName.toLowerCase()} es demasiado largo.`;
+            }
+            
+            setError(`${fieldName}: ${friendlyMessage}`);
             return;
           }
         }
         
         // Si hay un mensaje de error general
         if (errorData.detail || errorData.error || errorData.message) {
-          setError(errorData.detail || errorData.error || errorData.message);
+          let generalError = errorData.detail || errorData.error || errorData.message;
+          
+          // Mejorar mensajes generales comunes
+          if (typeof generalError === 'string') {
+            if (generalError.includes('already exists') || generalError.includes('ya existe')) {
+              generalError = 'Algunos de los datos ingresados ya están en uso. Por favor, verifica tu información.';
+            } else if (generalError.includes('unique constraint') || generalError.includes('violates unique constraint')) {
+              generalError = 'Los datos ingresados ya están registrados. Por favor, verifica tu información.';
+            }
+          }
+          
+          setError(generalError);
           return;
         }
         
-        // Si hay errores no específicos, mostrar el objeto completo en desarrollo
-        if (process.env.NODE_ENV === 'development') {
-          setError(`Error: ${JSON.stringify(errorData)}`);
-        } else {
-          setError('Error al registrar. Por favor, verifica todos los campos.');
-        }
+        // Si hay errores no específicos, mostrar mensaje genérico
+        setError('Error al registrar. Por favor, verifica todos los campos e intenta de nuevo.');
       } else {
-        setError('Error al registrar. Inténtalo de nuevo.');
+        setError('Error al registrar. Por favor, verifica tu conexión e intenta de nuevo.');
       }
     } finally {
       setLoading(false);

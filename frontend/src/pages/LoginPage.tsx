@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, Loader2, Mail, ArrowLeft, Lock } from 'lucide-react';
+import { Calendar, Loader2, Mail, ArrowLeft, Lock, Eye, EyeOff } from 'lucide-react';
 import Header from '@/components/layout/Header';
 
 function LoginPage() {
@@ -18,6 +18,7 @@ function LoginPage() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [resendingCode, setResendingCode] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
   // Estados para recuperación de contraseña
   const [showPasswordReset, setShowPasswordReset] = useState(false);
@@ -488,16 +489,30 @@ function LoginPage() {
                   <Label htmlFor="password" className="text-base font-medium">
                     Contraseña
                   </Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="Ingresa tu contraseña"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    disabled={loading}
-                    className="h-12 text-base"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Ingresa tu contraseña"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      disabled={loading}
+                      className="h-12 text-base pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      disabled={loading}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-5 w-5" />
+                      ) : (
+                        <Eye className="h-5 w-5" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 
                 <Button

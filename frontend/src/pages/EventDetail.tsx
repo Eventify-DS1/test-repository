@@ -270,6 +270,26 @@ const EventDetail = () => {
   const handleSubscribe = async () => {
     if (!id || !evento) return;
     
+    // Validar que el propietario no se pueda inscribir
+    if (effectiveCurrentUser?.id === evento?.organizador?.id) {
+      toast({
+        title: "No puedes inscribirte",
+        description: "No puedes inscribirte en tu propio evento.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validar que el evento no haya terminado
+    if (isEventFinished) {
+      toast({
+        title: "Evento finalizado",
+        description: "No puedes inscribirte en un evento que ya ha terminado.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!isAuthenticated) {
       toast({
         title: "Debes iniciar sesión",
@@ -856,7 +876,7 @@ const EventDetail = () => {
                     {!isSubscribed ? (
                       <Button
                         onClick={handleSubscribe}
-                        disabled={isLoadingSubscription || spotsLeft <= 0}
+                        disabled={isLoadingSubscription || spotsLeft <= 0 || isEventFinished || (effectiveCurrentUser?.id === evento?.organizador?.id)}
                         className="w-full gradient-primary text-white border-0"
                       >
                         {isLoadingSubscription ? (
@@ -864,6 +884,10 @@ const EventDetail = () => {
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Inscribiendo...
                           </>
+                        ) : isEventFinished ? (
+                          "Evento finalizado"
+                        ) : effectiveCurrentUser?.id === evento?.organizador?.id ? (
+                          "Eres el organizador"
                         ) : spotsLeft <= 0 ? (
                           "Evento lleno"
                         ) : (
@@ -1012,27 +1036,38 @@ const EventDetail = () => {
               )}
               {isOwner && (
                 <div className="space-y-3 mt-6">
-                  <Button 
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0"
-                    variant="default"
-                    onClick={() => setIsMessageDialogOpen(true)}
-                  >
-                    <Mail className="mr-2 h-4 w-4" />
-                    Enviar mensaje a inscritos
-                  </Button>
-                  <Button 
-                    className="w-full gradient-primary text-white border-0" 
-                    asChild
-                  >
-                    <Link to={`/dashboard/eventos/editar/${evento.id}`}>Editar evento</Link>
-                  </Button>
-                  <Button
-                    className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                    variant="destructive"
-                    onClick={() => handleDelete(evento.id)}
-                  >
-                    Borrar evento
-                  </Button>
+                  {!isEventFinished && (
+                    <>
+                      <Button 
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0"
+                        variant="default"
+                        onClick={() => setIsMessageDialogOpen(true)}
+                      >
+                        <Mail className="mr-2 h-4 w-4" />
+                        Enviar mensaje a inscritos
+                      </Button>
+                      <Button 
+                        className="w-full gradient-primary text-white border-0" 
+                        asChild
+                      >
+                        <Link to={`/dashboard/eventos/editar/${evento.id}`}>Editar evento</Link>
+                      </Button>
+                      <Button
+                        className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                        variant="destructive"
+                        onClick={() => handleDelete(evento.id)}
+                      >
+                        Borrar evento
+                      </Button>
+                    </>
+                  )}
+                  {isEventFinished && (
+                    <div className="p-4 bg-muted rounded-lg border border-border">
+                      <p className="text-sm text-muted-foreground text-center">
+                        Este evento ya ha finalizado. No se pueden realizar modificaciones ni enviar mensajes.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
