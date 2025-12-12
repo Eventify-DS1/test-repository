@@ -184,7 +184,6 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = 'None' 
 CSRF_COOKIE_SECURE = True
-CSRF_COOKIE_PARTITIONED = True  # Permitir envío en contextos de terceros (Chrome bloquea 3rd-party cookies)
 
 # ============================================
 # REST FRAMEWORK & SECURITY
