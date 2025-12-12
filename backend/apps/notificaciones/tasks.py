@@ -169,3 +169,185 @@ def limpiar_notificaciones_eventos_finalizados():
     notificaciones_a_eliminar.delete()
     
     return f"Proceso completado. {cantidad_notificaciones} notificaciones eliminadas de {cantidad_eventos} eventos finalizados."
+
+
+def _crear_y_enviar_notificacion_cambio(evento, mensaje):
+    """
+    Función auxiliar para crear una notificación de cambio de evento y enviarla a los usuarios.
+    Incluye tanto al organizador como a los usuarios inscritos.
+    Usa tipo 'evento' y etiqueta 'general'.
+    Retorna True si se creó y envió, False si hubo error.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🔔 [NOTIF_CAMBIO] Iniciando creación de notificación para evento '{evento.titulo}' (ID: {evento.id})")
+    logger.debug(f"📝 [NOTIF_CAMBIO] Mensaje: {mensaje}")
+    
+    # Crear la notificación (siempre crear una nueva para cada cambio)
+    try:
+        notificacion = Notificacion.objects.create(
+            evento=evento,
+            tipo='evento',  # Tipo 'evento' para cambios de evento
+            etiqueta='general',  # Etiqueta 'general' para todos los cambios
+            mensaje=mensaje
+        )
+        logger.info(f"✅ [NOTIF_CAMBIO] Notificación creada en BD con ID: {notificacion.id}")
+    except Exception as e:
+        logger.error(f"❌ [NOTIF_CAMBIO] Error al crear notificación de cambio para evento '{evento.titulo}': {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return False
+    
+    # Obtener todos los usuarios que deben recibir la notificación
+    usuarios_a_notificar = []
+    
+    # 1. Añadir el organizador
+    usuarios_a_notificar.append(evento.organizador)
+    logger.debug(f"👤 [NOTIF_CAMBIO] Organizador agregado: {evento.organizador.username} (ID: {evento.organizador.id})")
+    
+    # 2. Añadir todos los usuarios inscritos
+    inscripciones = evento.inscripciones.select_related('usuario').all()
+    logger.debug(f"📋 [NOTIF_CAMBIO] Total de inscripciones encontradas: {inscripciones.count()}")
+    
+    for inscripcion in inscripciones:
+        if inscripcion.usuario not in usuarios_a_notificar:
+            usuarios_a_notificar.append(inscripcion.usuario)
+            logger.debug(f"👤 [NOTIF_CAMBIO] Participante agregado: {inscripcion.usuario.username} (ID: {inscripcion.usuario.id})")
+    
+    logger.info(f"📊 [NOTIF_CAMBIO] Total de usuarios a notificar: {len(usuarios_a_notificar)} (1 organizador + {len(usuarios_a_notificar) - 1} participantes)")
+    
+    # Si no hay usuarios a notificar, no hay nada que hacer
+    if not usuarios_a_notificar:
+        logger.warning(f"⚠️  [NOTIF_CAMBIO] No hay usuarios a notificar para el evento {evento.id}")
+        return False
+    
+    # Crear las relaciones UsuarioNotificacion y enviar por WebSocket
+    notificaciones_enviadas = 0
+    notificaciones_fallidas = 0
+    
+    for usuario in usuarios_a_notificar:
+        try:
+            # Crear relación UsuarioNotificacion
+            usuario_notif, created = UsuarioNotificacion.objects.get_or_create(
+                usuario=usuario,
+                notificacion=notificacion,
+                defaults={'leida': False}
+            )
+            logger.debug(f"💾 [NOTIF_CAMBIO] Relación UsuarioNotificacion {'creada' if created else 'ya existía'} para usuario {usuario.username}")
+            
+            # Enviar notificación por WebSocket al grupo del usuario
+            channel_layer = get_channel_layer()
+            grupo_usuario = f"user_{usuario.id}"
+            
+            logger.debug(f"📡 [NOTIF_CAMBIO] Enviando WebSocket al grupo '{grupo_usuario}' para usuario {usuario.username}")
+            
+            async_to_sync(channel_layer.group_send)(
+                grupo_usuario,
+                {
+                    'type': 'send_notification',
+                    'notification': {
+                        'id': notificacion.id,
+                        'tipo': notificacion.tipo,
+                        'mensaje': notificacion.mensaje,
+                        'evento_id': evento.id if evento else None,
+                        'evento_titulo': evento.titulo if evento else None,
+                        'fecha_envio': notificacion.fecha_envio.isoformat(),
+                        'leida': False
+                    }
+                }
+            )
+            notificaciones_enviadas += 1
+            logger.debug(f"✅ [NOTIF_CAMBIO] WebSocket enviado exitosamente a usuario {usuario.username}")
+            
+        except Exception as e:
+            notificaciones_fallidas += 1
+            logger.error(f"⚠️  [NOTIF_CAMBIO] Error al enviar WebSocket a usuario {usuario.username}: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+    
+    logger.info(f"📊 [NOTIF_CAMBIO] Resumen: {notificaciones_enviadas} notificaciones enviadas, {notificaciones_fallidas} fallidas")
+    
+    return True
+
+
+@shared_task
+def notificar_cambio_evento(evento_id, campo_modificado, valor_anterior=None, valor_nuevo=None):
+    """
+    Tarea Celery para notificar al organizador y a los participantes cuando se modifica:
+    - ubicacion
+    - fecha_inicio
+    - fecha_fin
+    
+    Args:
+        evento_id: ID del evento modificado
+        campo_modificado: 'ubicacion', 'fecha_inicio', o 'fecha_fin'
+        valor_anterior: Valor anterior del campo (opcional, para el mensaje)
+        valor_nuevo: Valor nuevo del campo (opcional, para el mensaje)
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🔔 [CELERY] Iniciando tarea de notificación de cambio para evento ID: {evento_id}")
+    logger.info(f"📋 [CELERY] Campo modificado: {campo_modificado}")
+    logger.debug(f"📋 [CELERY] Valor anterior: {valor_anterior}")
+    logger.debug(f"📋 [CELERY] Valor nuevo: {valor_nuevo}")
+    
+    try:
+        evento = Evento.objects.select_related('organizador').prefetch_related('inscripciones__usuario').get(id=evento_id)
+        logger.info(f"✅ [CELERY] Evento encontrado: '{evento.titulo}' (ID: {evento.id})")
+        logger.debug(f"👤 [CELERY] Organizador: {evento.organizador.username} (ID: {evento.organizador.id})")
+    except Evento.DoesNotExist:
+        error_msg = f"Error: Evento con ID {evento_id} no encontrado."
+        logger.error(f"❌ [CELERY] {error_msg}")
+        return error_msg
+    except Exception as e:
+        error_msg = f"Error al obtener evento {evento_id}: {str(e)}"
+        logger.error(f"❌ [CELERY] {error_msg}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return error_msg
+    
+    # Mapear campos a mensajes personalizados
+    mapeo_campos = {
+        'ubicacion': {
+            'mensaje_template': lambda e, ant, nuevo: f"El evento '{e.titulo}' ha cambiado de ubicación. Nueva ubicación: {nuevo if nuevo else 'actualizada'}."
+        },
+        'fecha_inicio': {
+            'mensaje_template': lambda e, ant, nuevo: f"El evento '{e.titulo}' ha cambiado su fecha de inicio. Nueva fecha: {nuevo if nuevo else e.fecha_inicio.strftime('%d/%m/%Y %H:%M')}."
+        },
+        'fecha_fin': {
+            'mensaje_template': lambda e, ant, nuevo: f"El evento '{e.titulo}' ha cambiado su fecha de finalización. Nueva fecha: {nuevo if nuevo else e.fecha_fin.strftime('%d/%m/%Y %H:%M')}."
+        }
+    }
+    
+    if campo_modificado not in mapeo_campos:
+        error_msg = f"Error: Campo '{campo_modificado}' no es válido para notificaciones de cambio."
+        logger.error(f"❌ [CELERY] {error_msg}")
+        return error_msg
+    
+    config_campo = mapeo_campos[campo_modificado]
+    
+    # Crear mensaje personalizado
+    try:
+        mensaje = config_campo['mensaje_template'](evento, valor_anterior, valor_nuevo)
+        logger.info(f"📝 [CELERY] Mensaje generado: {mensaje}")
+    except Exception as e:
+        error_msg = f"Error al generar mensaje: {str(e)}"
+        logger.error(f"❌ [CELERY] {error_msg}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return error_msg
+    
+    # Crear y enviar notificación (usa etiqueta 'general')
+    logger.info(f"🚀 [CELERY] Llamando a _crear_y_enviar_notificacion_cambio()...")
+    resultado = _crear_y_enviar_notificacion_cambio(evento, mensaje)
+    
+    if resultado:
+        success_msg = f"Notificación de cambio de {campo_modificado} enviada para el evento '{evento.titulo}'."
+        logger.info(f"✅ [CELERY] {success_msg}")
+        return success_msg
+    else:
+        error_msg = f"No se pudo enviar la notificación de cambio de {campo_modificado} para el evento '{evento.titulo}'."
+        logger.error(f"❌ [CELERY] {error_msg}")
+        return error_msg
