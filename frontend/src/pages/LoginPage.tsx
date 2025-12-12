@@ -61,7 +61,8 @@ function LoginPage() {
         navigate('/dashboard');
       }
     } catch (err) {
-      console.error(err);
+      // No mostrar el error en consola - ya se muestra al usuario con setError
+      // Los errores 401 de login son esperados cuando las credenciales son incorrectas
       if (err.response?.data?.error) {
         setError(err.response.data.error);
         // Si el error es por código MFA incorrecto, mantener en paso MFA

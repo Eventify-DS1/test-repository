@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Search as SearchIcon, Filter, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "@/components/layout/Sidebar";
@@ -25,6 +25,7 @@ import { getEventosStatsRequest, getEventosRequest, getCategoriasRequest, verify
 import { getUserInscriptionsRequest } from "@/api/events";
 import { toast } from "sonner";
 import { getImageUrl } from "@/utils/imageHelpers";
+import apiClient from "@/api/api";
 
 interface Organizador {
   id: number;
@@ -76,6 +77,7 @@ const Search = () => {
   const [count, setCount] = useState(0);
   const [hasNext, setHasNext] = useState(false);
   const [hasPrevious, setHasPrevious] = useState(false);
+  const [allEventos, setAllEventos] = useState<Evento[]>([]); // Para almacenar todos los eventos cuando ordenamos por fecha
 
 
   useEffect(() => {
@@ -159,37 +161,90 @@ const Search = () => {
     const fetchEventos = async () => {
       try {
         setLoading(true);
-        const params: any = {
-          page: page,
-          page_size: pageSize,
-        };
         
-        if (searchTerm) {
-          params.search = searchTerm;
-        }
-        
-        if (categoryFilter !== "all") {
-          const categoriaId = parseInt(categoryFilter);
-          if (!isNaN(categoriaId)) {
-            params.categoria = categoriaId;
+        // Si ordenamos por fecha, necesitamos cargar todos los eventos para ordenarlos correctamente
+        // antes de paginar
+        if (sortBy === "date") {
+          const params: any = {
+            page_size: 1000, // Cargar una cantidad grande de eventos
+          };
+          
+          if (searchTerm) {
+            params.search = searchTerm;
           }
-        }
+          
+          if (categoryFilter !== "all") {
+            const categoriaId = parseInt(categoryFilter);
+            if (!isNaN(categoriaId)) {
+              params.categoria = categoriaId;
+            }
+          }
 
-        const response = await getEventosRequest(params);
-        const eventosData = response.data.results || response.data;
-        setEventos(Array.isArray(eventosData) ? eventosData : []);
-        
-        // Manejar información de paginación
-        if (response.data.count !== undefined) {
-          setCount(response.data.count);
-          const calculatedTotalPages = Math.ceil(response.data.count / pageSize);
-          setTotalPages(calculatedTotalPages);
+          const response = await getEventosRequest(params);
+          let eventosData = response.data.results || response.data;
+          eventosData = Array.isArray(eventosData) ? eventosData : [];
+          
+          // Si hay más páginas, cargarlas todas
+          let nextUrl = response.data.next;
+          while (nextUrl) {
+            try {
+              // Extraer solo el path de la URL (desde /api en adelante)
+              const urlObj = new URL(nextUrl, window.location.origin);
+              const path = urlObj.pathname + urlObj.search;
+              const nextResponse = await apiClient.get(path);
+              const nextData = nextResponse.data.results || nextResponse.data;
+              if (Array.isArray(nextData)) {
+                eventosData = [...eventosData, ...nextData];
+              }
+              nextUrl = nextResponse.data.next;
+            } catch (err) {
+              console.error('Error al cargar página adicional:', err);
+              break;
+            }
+          }
+          
+          setAllEventos(eventosData);
+        } else {
+          // Para otros ordenamientos, usar paginación normal del servidor
+          const params: any = {
+            page: page,
+            page_size: pageSize,
+          };
+          
+          if (searchTerm) {
+            params.search = searchTerm;
+          }
+          
+          if (categoryFilter !== "all") {
+            const categoriaId = parseInt(categoryFilter);
+            if (!isNaN(categoriaId)) {
+              params.categoria = categoriaId;
+            }
+          }
+
+          const response = await getEventosRequest(params);
+          const eventosData = response.data.results || response.data;
+          setEventos(Array.isArray(eventosData) ? eventosData : []);
+          setAllEventos([]); // Limpiar cuando no usamos ordenamiento por fecha
+          
+          // Manejar información de paginación
+          if (response.data.count !== undefined) {
+            setCount(response.data.count);
+            const calculatedTotalPages = Math.ceil(response.data.count / pageSize);
+            setTotalPages(calculatedTotalPages > 0 ? calculatedTotalPages : 1);
+          } else {
+            // Si no hay count, usar el número de eventos recibidos
+            const eventosCount = Array.isArray(eventosData) ? eventosData.length : 0;
+            setCount(eventosCount);
+            setTotalPages(1);
+          }
+          setHasNext(!!response.data.next);
+          setHasPrevious(!!response.data.previous);
         }
-        setHasNext(!!response.data.next);
-        setHasPrevious(!!response.data.previous);
       } catch (error) {
         console.error('Error al cargar eventos:', error);
         setEventos([]);
+        setAllEventos([]);
         setCount(0);
         setTotalPages(1);
         setHasNext(false);
@@ -200,12 +255,12 @@ const Search = () => {
     };
 
     fetchEventos();
-  }, [searchTerm, categoryFilter, page, pageSize]);
+  }, [searchTerm, categoryFilter, page, pageSize, sortBy]);
 
-  // Resetear página cuando cambian los filtros
+  // Resetear página cuando cambian los filtros o el ordenamiento
   useEffect(() => {
     setPage(1);
-  }, [searchTerm, categoryFilter]);
+  }, [searchTerm, categoryFilter, sortBy, dateFilter, subscriptionFilter]);
 
 
   const formatDate = (dateString: string) => {
@@ -225,61 +280,113 @@ const Search = () => {
     });
   };
 
-  const filteredEvents = eventos.filter(evento => {
-    // Filtro por fecha
-    if (dateFilter) {
-      const eventoDate = new Date(evento.fecha_inicio).toISOString().split('T')[0];
-      if (eventoDate !== dateFilter) {
-        return false;
-      }
-    }
+  // Usar allEventos cuando ordenamos por fecha, eventos en otros casos
+  const eventosToProcess = sortBy === "date" ? allEventos : eventos;
 
-    // Filtro por inscripción (solo aplicar si las inscripciones ya se cargaron)
-    if (!loadingSubscriptions) {
-      // Asegurar que el ID del evento sea un número para la comparación
-      const eventoId = Number(evento.id);
-      
-      if (subscriptionFilter === "subscribed") {
-        // Solo eventos donde el usuario está inscrito
-        // Verificar que el ID del evento esté en el Set de eventos inscritos
-        if (!subscribedEventIds.has(eventoId)) {
-          return false;
-        }
-      } else if (subscriptionFilter === "not_subscribed") {
-        // Solo eventos donde el usuario NO está inscrito
-        // Verificar que el ID del evento NO esté en el Set de eventos inscritos
-        if (subscribedEventIds.has(eventoId)) {
+  const filteredEvents = useMemo(() => {
+    return eventosToProcess.filter(evento => {
+      // Filtro por fecha
+      if (dateFilter) {
+        const eventoDate = new Date(evento.fecha_inicio).toISOString().split('T')[0];
+        if (eventoDate !== dateFilter) {
           return false;
         }
       }
-    }
-    // Si subscriptionFilter === "all", no filtrar por inscripción
-    // Si loadingSubscriptions === true, no filtrar por inscripción hasta que se carguen
 
-    return true;
-  });
+      // Filtro por inscripción (solo aplicar si las inscripciones ya se cargaron)
+      if (!loadingSubscriptions) {
+        // Asegurar que el ID del evento sea un número para la comparación
+        const eventoId = Number(evento.id);
+        
+        if (subscriptionFilter === "subscribed") {
+          // Solo eventos donde el usuario está inscrito
+          // Verificar que el ID del evento esté en el Set de eventos inscritos
+          if (!subscribedEventIds.has(eventoId)) {
+            return false;
+          }
+        } else if (subscriptionFilter === "not_subscribed") {
+          // Solo eventos donde el usuario NO está inscrito
+          // Verificar que el ID del evento NO esté en el Set de eventos inscritos
+          if (subscribedEventIds.has(eventoId)) {
+            return false;
+          }
+        }
+      }
+      // Si subscriptionFilter === "all", no filtrar por inscripción
+      // Si loadingSubscriptions === true, no filtrar por inscripción hasta que se carguen
+
+      return true;
+    });
+  }, [eventosToProcess, dateFilter, subscriptionFilter, loadingSubscriptions, subscribedEventIds]);
 
   // Ordenar eventos según el criterio seleccionado
-  const sortedEvents = [...filteredEvents].sort((a, b) => {
-    switch (sortBy) {
-      case "date":
-        // Fecha (más reciente primero)
-        return new Date(b.fecha_inicio).getTime() - new Date(a.fecha_inicio).getTime();
-      
-      case "popular":
-        // Más popular (más inscritos primero)
-        const inscritosA = a.numero_inscritos || 0;
-        const inscritosB = b.numero_inscritos || 0;
-        return inscritosB - inscritosA;
-      
-      case "capacity":
-        // Capacidad (mayor capacidad primero)
-        return b.aforo - a.aforo;
-      
-      default:
-        return 0;
+  const sortedEvents = useMemo(() => {
+    return [...filteredEvents].sort((a, b) => {
+      switch (sortBy) {
+        case "date":
+          // Primero eventos no finalizados (del más cercano al más lejano)
+          // Luego eventos finalizados (del más cercano al más antiguo)
+          const ahora = new Date().getTime();
+          const fechaFinA = new Date(a.fecha_fin).getTime();
+          const fechaFinB = new Date(b.fecha_fin).getTime();
+          const fechaInicioA = new Date(a.fecha_inicio).getTime();
+          const fechaInicioB = new Date(b.fecha_inicio).getTime();
+          
+          const aFinalizado = fechaFinA < ahora;
+          const bFinalizado = fechaFinB < ahora;
+          
+          // Si uno está finalizado y el otro no, el no finalizado va primero
+          if (aFinalizado && !bFinalizado) {
+            return 1; // b va primero (no finalizado)
+          }
+          if (!aFinalizado && bFinalizado) {
+            return -1; // a va primero (no finalizado)
+          }
+          
+          // Si ambos están en el mismo estado (finalizados o no finalizados)
+          if (!aFinalizado && !bFinalizado) {
+            // Ambos no finalizados: ordenar por fecha_inicio ascendente (más cercano primero)
+            return fechaInicioA - fechaInicioB;
+          } else {
+            // Ambos finalizados: ordenar por fecha_fin descendente (más cercano al más antiguo)
+            return fechaFinB - fechaFinA;
+          }
+        
+        case "popular":
+          // Más popular (más inscritos primero)
+          const inscritosA = a.numero_inscritos || 0;
+          const inscritosB = b.numero_inscritos || 0;
+          return inscritosB - inscritosA;
+        
+        case "capacity":
+          // Capacidad (mayor capacidad primero)
+          return b.aforo - a.aforo;
+        
+        default:
+          return 0;
+      }
+    });
+  }, [filteredEvents, sortBy]);
+
+  // Aplicar paginación del cliente cuando ordenamos por fecha
+  const paginatedEvents = useMemo(() => {
+    return sortBy === "date" 
+      ? sortedEvents.slice((page - 1) * pageSize, page * pageSize)
+      : sortedEvents;
+  }, [sortBy, sortedEvents, page, pageSize]);
+  
+  // Actualizar información de paginación cuando ordenamos por fecha (solo en cliente)
+  useEffect(() => {
+    if (sortBy === "date") {
+      const totalCount = sortedEvents.length;
+      setCount(totalCount);
+      const calculatedTotalPages = Math.ceil(totalCount / pageSize);
+      setTotalPages(calculatedTotalPages > 0 ? calculatedTotalPages : 1);
+      setHasNext(page < calculatedTotalPages);
+      setHasPrevious(page > 1);
     }
-  });
+    // Cuando no ordenamos por fecha, la paginación viene del servidor en fetchEventos
+  }, [sortBy, sortedEvents, page, pageSize]);
 
   const categories = [
     { value: "all", label: "Todas las categorías" },
@@ -402,7 +509,12 @@ const Search = () => {
         <div>
           <div className="flex justify-between items-center mb-6">
             <p className="text-muted-foreground">
-              Mostrando <span className="font-bold text-foreground">{sortedEvents.length}</span> de{" "}
+              Mostrando <span className="font-bold text-foreground">
+                {sortBy === "date" 
+                  ? `${Math.min((page - 1) * pageSize + 1, count)}-${Math.min(page * pageSize, count)}`
+                  : paginatedEvents.length
+                }
+              </span> de{" "}
               <span className="font-bold text-foreground">{count || totalEventos}</span> eventos
             </p>
             <Select value={sortBy} onValueChange={setSortBy}>
@@ -421,9 +533,9 @@ const Search = () => {
             <div className="text-center py-16">
               <p className="text-muted-foreground">Cargando eventos...</p>
             </div>
-          ) : sortedEvents.length > 0 ? (
+          ) : paginatedEvents.length > 0 ? (
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {sortedEvents.map((evento, index) => (
+              {paginatedEvents.map((evento, index) => (
                 <div
                   key={evento.id}
                   className="animate-fade-in"
@@ -483,7 +595,7 @@ const Search = () => {
           )}
 
           {/* Paginación */}
-          {!loading && sortedEvents.length > 0 && totalPages > 1 && (
+          {!loading && paginatedEvents.length > 0 && totalPages > 1 && (
             <div className="mt-8 flex justify-center">
               <Pagination>
                 <PaginationContent>

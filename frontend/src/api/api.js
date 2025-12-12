@@ -28,6 +28,8 @@ apiClient.interceptors.request.use((config) => {
   }
   
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
 // Interceptor de respuesta para manejar errores 401 y refrescar token automáticamente
@@ -49,6 +51,11 @@ const processQueue = (error, token = null) => {
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
+    // Si la petición fue cancelada, rechazar silenciosamente
+    if (axios.isCancel(error)) {
+      return Promise.reject(error);
+    }
+    
     const originalRequest = error.config;
 
     // URLs que NO deben intentar refrescar el token
@@ -108,8 +115,34 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // Si es un 401 pero no hay token de refresh, simplemente rechazar el error
-    // Esto permite que las peticiones públicas funcionen correctamente
+    // Silenciar errores 401 para rutas específicas donde es un estado válido (no autenticado)
+    // Esto evita mostrar errores en la consola del navegador
+    if (error.response?.status === 401) {
+      const silent401Urls = [
+        '/users-utils/usuarios/me/',
+        '/users-utils/login/', // Los errores de login con credenciales incorrectas son esperados
+      ];
+      
+      const shouldSilence = silent401Urls.some(url => 
+        originalRequest.url?.includes(url)
+      );
+      
+      if (shouldSilence) {
+        // Crear un error personalizado que no se mostrará en la consola del navegador
+        // pero que React Query puede manejar
+        const silentError = new Error(error.message || 'Unauthorized');
+        silentError.name = 'Silent401Error';
+        // Copiar propiedades importantes del error original
+        Object.assign(silentError, {
+          response: error.response,
+          config: error.config,
+          request: error.request,
+          isAxiosError: true,
+        });
+        return Promise.reject(silentError);
+      }
+    }
+    
     return Promise.reject(error);
   }
 );

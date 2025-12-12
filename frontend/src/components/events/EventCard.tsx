@@ -74,6 +74,16 @@ const EventCard = ({
   
   const spotsLeft = capacity - registered;
   
+  // Función para verificar si el evento ya finalizó
+  const isEventFinished = (): boolean => {
+    if (!fechaFin) return false;
+    const eventEndDate = new Date(fechaFin);
+    const now = new Date();
+    return eventEndDate < now;
+  };
+  
+  const eventFinished = isEventFinished();
+  
   // Actualizar estado de favorito cuando cambia la prop isFavorito
   useEffect(() => {
     setFavorito(isFavorito);
@@ -138,6 +148,15 @@ const EventCard = ({
     e.preventDefault();
     e.stopPropagation();
     
+    if (eventFinished) {
+      toast({
+        title: "Evento finalizado",
+        description: "Este evento ya ha finalizado y no permite nuevas inscripciones.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     if (!isAuthenticated) {
       toast({
         title: "Debes iniciar sesión",
@@ -183,6 +202,15 @@ const EventCard = ({
   const handleUnsubscribe = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    if (eventFinished) {
+      toast({
+        title: "Evento finalizado",
+        description: "Este evento ya ha finalizado.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setIsLoading(true);
     try {
@@ -355,32 +383,38 @@ const EventCard = ({
             {isAuthenticated ? (
               // No mostrar botón de inscribirse si el usuario es el organizador
               !isOwner ? (
-                <Button
-                  onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
-                  disabled={isLoading || spotsLeft <= 0}
-                  className={`w-full ${
-                    isSubscribed
-                      ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground"
-                      : "gradient-primary text-white border-0"
-                  }`}
-                  variant={isSubscribed ? "secondary" : "default"}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {isSubscribed ? "Desinscribiendo..." : "Inscribiendo..."}
-                    </>
-                  ) : isSubscribed ? (
-                    <>
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                      Inscrito
-                    </>
-                  ) : spotsLeft <= 0 ? (
-                    "Evento lleno"
-                  ) : (
-                    "Inscribirse"
-                  )}
-                </Button>
+                eventFinished ? (
+                  <div className="w-full py-2 px-4 text-center text-sm text-muted-foreground bg-muted/50 rounded-md">
+                    Evento finalizado
+                  </div>
+                ) : (
+                  <Button
+                    onClick={isSubscribed ? handleUnsubscribe : handleSubscribe}
+                    disabled={isLoading || spotsLeft <= 0 || eventFinished}
+                    className={`w-full ${
+                      isSubscribed
+                        ? "bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                        : "gradient-primary text-white border-0"
+                    }`}
+                    variant={isSubscribed ? "secondary" : "default"}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        {isSubscribed ? "Desinscribiendo..." : "Inscribiendo..."}
+                      </>
+                    ) : isSubscribed ? (
+                      <>
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Inscrito
+                      </>
+                    ) : spotsLeft <= 0 ? (
+                      "Evento lleno"
+                    ) : (
+                      "Inscribirse"
+                    )}
+                  </Button>
+                )
               ) : (
                 <div className="w-full py-2 px-4 text-center text-sm text-muted-foreground bg-muted/50 rounded-md">
                   Eres el organizador de este evento
