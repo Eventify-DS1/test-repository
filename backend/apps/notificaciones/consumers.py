@@ -116,11 +116,16 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         }))
         print(f"✅ [CONSUMER] Mensaje enviado al WebSocket")
 
+    # Fixed indentation and verified by AI
     @database_sync_to_async
     def get_user_from_token(self, token):
         """
         Valida el token JWT y retorna el usuario asociado.
         """
+        if not token:
+            print("❌ [get_user_from_token] Token no encontrado en cookies")
+            return None
+
         try:
             # Validar el token
             UntypedToken(token)
@@ -132,18 +137,21 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 algorithms=["HS256"]
             )
             
-            # Obtener el usuario
             user_id = decoded_data.get('user_id')
             if user_id:
                 try:
                     user = User.objects.get(id=user_id)
                     return user
                 except User.DoesNotExist:
+                    print(f"❌ Usuario con ID {user_id} no encontrado")
                     return None
             return None
             
-        except (InvalidToken, TokenError, Exception) as e:
-            print(f"Error al validar token: {str(e)}")
+        except (InvalidToken, TokenError) as e:
+            print(f"❌ Token inválido o expirado: {str(e)}")
+            return None
+        except Exception as e:
+            print(f"❌ Error inesperado al validar token: {str(e)}")
             return None
 
 

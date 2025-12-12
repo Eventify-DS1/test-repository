@@ -34,4 +34,6 @@ RUN chown -R celeryuser:celeryuser /app
 EXPOSE 8000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Usar daphne para producción (soporta WebSockets y HTTP)
+# Escuchar en 0.0.0.0 y usar la variable de entorno $PORT (o 8000 por defecto)
+CMD daphne -b 0.0.0.0 -p ${PORT:-8000} backend.asgi:application
