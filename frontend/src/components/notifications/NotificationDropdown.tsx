@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Bell, Loader2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import NotificationCard from "./NotificationCard";
-import { getAllNotificationsRequest } from "@/api/notifications";
+import { getAllNotificationsRequest, getNotificationCountRequest } from "@/api/notifications";
 
 interface Notification {
   id: number;
@@ -28,7 +28,19 @@ const NotificationDropdown = ({ children }: NotificationDropdownProps) => {
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  const fetchNotifications = async () => {
+  // Función para obtener el conteo de notificaciones no leídas
+  const fetchNotificationCount = useCallback(async () => {
+    try {
+      const response = await getNotificationCountRequest();
+      const { no_leidas } = response.data;
+      setUnreadCount(no_leidas || 0);
+    } catch (error) {
+      console.error("Error al obtener conteo de notificaciones:", error);
+      setUnreadCount(0);
+    }
+  }, []);
+
+  const fetchNotifications = useCallback(async () => {
     setLoading(true);
     try {
       const response = await getAllNotificationsRequest({
@@ -48,13 +60,35 @@ const NotificationDropdown = ({ children }: NotificationDropdownProps) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Cargar el conteo de notificaciones al montar el componente
+  useEffect(() => {
+    fetchNotificationCount();
+  }, [fetchNotificationCount]);
 
   useEffect(() => {
     if (open) {
       fetchNotifications();
     }
-  }, [open]);
+  }, [open, fetchNotifications]);
+
+  // Escuchar eventos de nuevas notificaciones desde WebSocket
+  useEffect(() => {
+    const handleNewNotification = () => {
+      // Recargar conteo y notificaciones cuando llegue una nueva por WebSocket
+      fetchNotificationCount();
+      if (open) {
+        fetchNotifications();
+      }
+    };
+
+    window.addEventListener('newNotification', handleNewNotification);
+    
+    return () => {
+      window.removeEventListener('newNotification', handleNewNotification);
+    };
+  }, [fetchNotifications, fetchNotificationCount, open]);
 
   const handleMarkAsRead = (id: number) => {
     setNotifications((prev) =>
@@ -63,6 +97,20 @@ const NotificationDropdown = ({ children }: NotificationDropdownProps) => {
       )
     );
     setUnreadCount((prev) => Math.max(0, prev - 1));
+  };
+
+  const handleDelete = (id: number) => {
+    setNotifications((prev) => {
+      const deleted = prev.find((notif) => notif.id === id);
+      const newNotifications = prev.filter((notif) => notif.id !== id);
+      // Si la notificación eliminada no estaba leída, reducir el conteo
+      if (deleted && !deleted.leida) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+      return newNotifications;
+    });
+    // Actualizar el conteo después de eliminar
+    fetchNotificationCount();
   };
 
   return (
@@ -125,6 +173,7 @@ const NotificationDropdown = ({ children }: NotificationDropdownProps) => {
                   key={notification.id}
                   {...notification}
                   onMarkAsRead={handleMarkAsRead}
+                  onDelete={handleDelete}
                 />
               ))
             )}

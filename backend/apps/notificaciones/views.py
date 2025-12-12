@@ -79,3 +79,57 @@ class NotificacionViewSet(viewsets.ReadOnlyModelViewSet):
             {'detail': 'No se permite eliminar notificaciones mediante este endpoint.'},
             status=405
         )
+    
+    @action(detail=False, methods=['get'])
+    def conteo(self, request):
+        """
+        Endpoint para obtener el conteo de notificaciones del usuario.
+        Retorna el total de notificaciones y el total de no leídas.
+        GET /api/notifications-utils/notificaciones/conteo/
+        """
+        usuario = request.user
+        
+        # Obtener todas las notificaciones del usuario
+        notificaciones = Notificacion.objects.filter(
+            destinatarios__usuario=usuario
+        ).distinct()
+        
+        # Contar total y no leídas
+        total = notificaciones.count()
+        
+        # Contar no leídas usando UsuarioNotificacion
+        no_leidas = UsuarioNotificacion.objects.filter(
+            usuario=usuario,
+            leida=False
+        ).count()
+        
+        return Response({
+            'total': total,
+            'no_leidas': no_leidas,
+            'leidas': total - no_leidas
+        }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['delete'])
+    def eliminar(self, request, pk=None):
+        """
+        Endpoint personalizado para eliminar una notificación del usuario.
+        Elimina el registro UsuarioNotificacion, no la Notificacion en sí.
+        DELETE /api/notifications-utils/notificaciones/{id}/eliminar/
+        """
+        notificacion = self.get_object()
+        
+        try:
+            usuario_notificacion = UsuarioNotificacion.objects.get(
+                usuario=request.user,
+                notificacion=notificacion
+            )
+            usuario_notificacion.delete()
+            
+            return Response({
+                'detail': 'Notificación eliminada correctamente'
+            }, status=status.HTTP_200_OK)
+        except UsuarioNotificacion.DoesNotExist:
+            return Response(
+                {'detail': 'No tienes acceso a esta notificación'},
+                status=status.HTTP_404_NOT_FOUND
+            )

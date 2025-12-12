@@ -52,3 +52,20 @@ export const searchNotificationsByEventRequest = (searchTerm, additionalParams =
 export const leerNotificationRequest = (id) => {
     return apiClient.patch(`/notifications-utils/notificaciones/${id}/leer/`);
 };
+
+/**
+ * Obtener el conteo de notificaciones del usuario
+ * @returns {Promise} - Respuesta con total, no_leidas y leidas
+ */
+export const getNotificationCountRequest = () => {
+    return apiClient.get('/notifications-utils/notificaciones/conteo/');
+};
+
+/**
+ * Eliminar una notificación del usuario
+ * @param {number} id - ID de la notificación
+ * @returns {Promise} - Respuesta de confirmación
+ */
+export const eliminarNotificationRequest = (id) => {
+    return apiClient.delete(`/notifications-utils/notificaciones/${id}/eliminar/`);
+};

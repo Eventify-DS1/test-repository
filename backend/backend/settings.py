@@ -32,9 +32,6 @@ ALLOWED_HOSTS = [
     '.vercel.app'
 ]
 
-# ============================================
-# REDIS
-# ============================================
 
 REDIS_PASS = env('REDIS_PASS', default='')
 REDIS_ENDPOINT = env('REDIS_ENDPOINT', default='redis:6379' if os.environ.get('DOCKER_CONTAINER') else 'localhost:6379')
