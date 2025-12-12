@@ -8,8 +8,8 @@ const getBaseURL = () => {
   if (import.meta.env.DEV) {
     return '/api';
   }
-  // En producción, usa variable de entorno o ruta relativa
-  return import.meta.env.VITE_API_URL || '/api';
+  // En producción, usa variable de entorno o fallback al backend público
+  return import.meta.env.VITE_API_URL || 'https://test-repository-production-b71d.up.railway.app/api';
 };
 
 const apiClient = axios.create({
