@@ -267,6 +267,19 @@ CORS_EXPOSE_HEADERS = ['Set-Cookie']
 # 1. Configuración de Celery
 CELERY_BROKER_URL = REDIS_URL # Lee la URL que pusimos en el .env
 CELERY_RESULT_BACKEND = REDIS_URL # Almacenar resultados de las tareas en Redis
+
+# Configuración para limitar conexiones de Redis y evitar "max number of clients reached"
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+CELERY_BROKER_CONNECTION_RETRY = True
+CELERY_BROKER_CONNECTION_MAX_RETRIES = 10
+CELERY_RESULT_BACKEND_CONNECTION_RETRY_ON_STARTUP = True
+
+# Configuración de pool de conexiones Redis
+CELERY_BROKER_POOL_LIMIT = 10  # Limitar el pool de conexiones
+CELERY_RESULT_BACKEND_CONNECTION_POOL_KWARGS = {
+    'max_connections': 10,
+    'retry_on_timeout': True,
+}
 CELERY_ACCEPT_CONTENT = ['json'] # Aceptar contenido en formato JSON
 CELERY_TASK_SERIALIZER = 'json' # Serializar tareas en formato JSON
 CELERY_TIMEZONE = 'America/Bogota' # O tu zona horaria

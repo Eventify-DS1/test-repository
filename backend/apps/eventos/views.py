@@ -8,7 +8,7 @@ from django.db import models
 from .models import Evento, CategoriaEvento, Inscripcion, Reseña
 from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer, ReseñaSerializer
 from .tasks import send_email_task, send_message_to_inscritos
-from apps.notificaciones.tasks import notificar_cambio_evento
+from apps.notificaciones.tasks import notificar_cambio_evento, notificar_eliminacion_evento
 
 class CategoriaEventoViewSet(viewsets.ModelViewSet):
     """
@@ -252,22 +252,104 @@ class EventoViewSet(viewsets.ModelViewSet):
         else:
             logger.info(f"🔔 [UPDATE] Se detectaron {len(campos_cambiados)} cambio(s). Enviando notificaciones...")
         
+        # Obtener parámetro enviar_correo del request (por defecto False)
+        enviar_correo = self.request.data.get('enviar_correo', False)
+        if isinstance(enviar_correo, str):
+            enviar_correo = enviar_correo.lower() in ('true', '1', 'yes')
+        
         # Enviar notificaciones para cada campo cambiado
         for cambio in campos_cambiados:
             try:
-                logger.info(f"📤 [UPDATE] Enviando tarea Celery para notificar cambio de '{cambio['campo']}' en evento {evento_actualizado.id}")
+                logger.info(f"📤 [UPDATE] Enviando tarea Celery para notificar cambio de '{cambio['campo']}' en evento {evento_actualizado.id}, enviar_correo: {enviar_correo}")
                 notificar_cambio_evento.delay(
                     evento_actualizado.id,
                     cambio['campo'],
                     cambio['valor_anterior'],
-                    cambio['valor_nuevo']
+                    cambio['valor_nuevo'],
+                    enviar_correo
                 )
                 logger.info(f"✅ [UPDATE] Tarea Celery enviada exitosamente para cambio de '{cambio['campo']}'")
             except Exception as e:
-                # Si falla la notificación, no debe impedir la actualización del evento
+                # Si falla Celery, intentar notificar de forma síncrona
                 logger.error(f"❌ [UPDATE] Error al enviar tarea Celery para cambio de {cambio['campo']} en evento {evento_actualizado.id}: {str(e)}")
                 import traceback
                 logger.error(traceback.format_exc())
+                try:
+                    resultado_sync = notificar_cambio_evento(
+                        evento_actualizado.id,
+                        cambio['campo'],
+                        cambio['valor_anterior'],
+                        cambio['valor_nuevo'],
+                        enviar_correo
+                    )
+                    logger.info(f"✅ [UPDATE] Notificación síncrona ejecutada: {resultado_sync}")
+                except Exception as e_sync:
+                    logger.error(f"❌ [UPDATE] Error en notificación síncrona para cambio de {cambio['campo']}: {str(e_sync)}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+
+    def perform_destroy(self, instance):
+        """
+        Notifica a organizador y participantes cuando se elimina un evento.
+        Envía la tarea Celery antes de borrar el evento para conservar la data.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"🗑️ [DELETE] Solicitando eliminación del evento ID: {instance.id}, Título: {instance.titulo}")
+
+        # Validar que solo el organizador pueda eliminar
+        if instance.organizador != self.request.user:
+            raise serializers.ValidationError("No tienes permiso para eliminar este evento.")
+
+        # Capturar datos antes de borrar
+        participantes_ids = list(instance.inscripciones.values_list('usuario_id', flat=True))
+        organizador_id = instance.organizador_id
+        evento_id = instance.id
+        titulo_evento = instance.titulo
+
+        # Obtener parámetro enviar_correo del request (por defecto False)
+        enviar_correo = self.request.data.get('enviar_correo', False)
+        if isinstance(enviar_correo, str):
+            enviar_correo = enviar_correo.lower() in ('true', '1', 'yes')
+
+        try:
+            logger.info(f"🚀 [DELETE] Enviando tarea Celery para notificar eliminación de evento, enviar_correo: {enviar_correo}")
+            
+            resultado = notificar_eliminacion_evento.delay(
+                evento_id,
+                titulo_evento,
+                organizador_id,
+                participantes_ids,
+                enviar_correo
+            )
+            
+            logger.info(f"✅ [DELETE] Tarea Celery enviada exitosamente. Task ID: {resultado.id}")
+        except Exception as e:
+            logger.error(f"❌ [DELETE] Error al enviar tarea Celery de eliminación: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            
+            # FALLBACK: Ejecutar notificación de forma síncrona si Celery falla
+            try:
+                resultado_sync = notificar_eliminacion_evento(
+                    evento_id,
+                    titulo_evento,
+                    organizador_id,
+                    participantes_ids,
+                    enviar_correo
+                )
+                logger.info(f"✅ [DELETE] Notificación síncrona ejecutada exitosamente: {resultado_sync}")
+            except Exception as e_sync:
+                logger.error(f"❌ [DELETE] Error en notificación síncrona: {str(e_sync)}")
+                import traceback
+                logger.error(traceback.format_exc())
+            
+            # Continuar con la eliminación aunque falle la notificación
+
+        # Finalmente eliminar el evento
+        instance.delete()
+        logger.info(f"✅ [DELETE] Evento eliminado de la base de datos")
 
     def create(self, request, *args, **kwargs):
         """
