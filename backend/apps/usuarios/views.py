@@ -147,7 +147,22 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         de encriptar contraseñas ya está dentro del serializer.
         """
         user_created = serializer.save()
-        send_email_user_created.delay(user_created.id, user_created.username, user_created.email)
+        # Intentar enviar email de bienvenida por Celery; si falla (p.ej. Redis caído), fallback síncrono
+        try:
+            send_email_user_created.delay(user_created.id, user_created.username, user_created.email)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Fallo Celery al enviar email de bienvenida, usando fallback síncrono: {e}")
+            try:
+                # Envío síncrono de respaldo
+                from django.core.mail import send_mail
+                from django.conf import settings
+                subject = "¡Bienvenido a Eventify!"
+                message = f"Hola {user_created.username}, tu cuenta ha sido creada exitosamente."
+                send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [user_created.email], fail_silently=True)
+            except Exception as e2:
+                logger.error(f"Error también en envío síncrono de email de bienvenida: {e2}")
 
     def create(self, request, *args, **kwargs):
         """
