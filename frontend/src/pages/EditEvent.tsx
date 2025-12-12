@@ -22,6 +22,7 @@ import {
 import { Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate, useParams } from "react-router-dom";
 
 interface Categoria {
@@ -37,6 +38,7 @@ const EditEvent = () => {
   const [category, setCategory] = useState("");
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(false);
+  const [enviarCorreo, setEnviarCorreo] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -84,6 +86,7 @@ const EditEvent = () => {
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
     formData.append("categoria_id", category);
+    formData.append("enviar_correo", enviarCorreo.toString());
 
     try {
       setLoading(true);
@@ -219,6 +222,21 @@ const EditEvent = () => {
                 <p className="text-xs text-muted-foreground">
                   Si no subes nueva imagen, se mantiene la actual.
                 </p>
+              </div>
+
+              {/* Opción de enviar correo */}
+              <div className="flex items-center space-x-2 py-2 border-t pt-4">
+                <Checkbox
+                  id="enviar-correo"
+                  checked={enviarCorreo}
+                  onCheckedChange={(checked) => setEnviarCorreo(checked === true)}
+                />
+                <label
+                  htmlFor="enviar-correo"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  Enviar correo electrónico a los participantes sobre los cambios
+                </label>
               </div>
 
               <div className="flex gap-4 pt-4">
