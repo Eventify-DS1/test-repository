@@ -116,6 +116,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         }))
         print(f"✅ [CONSUMER] Mensaje enviado al WebSocket")
 
+    # Fixed indentation and verified by AI
     @database_sync_to_async
     def get_user_from_token(self, token):
         """
