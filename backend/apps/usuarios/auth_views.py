@@ -200,42 +200,20 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         return self._complete_login(user)
     
     def _complete_login(self, user):
-        """Completa el proceso de login estableciendo las cookies"""
+        """Completa el proceso de login devolviendo tokens en el body (para localStorage)"""
         # Generar tokens
         refresh = RefreshToken.for_user(user)
         access = str(refresh.access_token)
         
-        # Configuración de cookies
-        access_lifetime = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
-        refresh_lifetime = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
-        secure_flag = not settings.DEBUG
-        # Para permitir cookies entre dominios (Vercel -> Railway) se requiere SameSite=None
-        samesite_flag = 'None'
-        
+        # Devolver tokens en el body para que el frontend los guarde en localStorage
+        # Esto permite que funcionen en contextos cross-domain sin depender de cookies
         response = Response(
-            {"detail": "Login exitoso"},
+            {
+                "detail": "Login exitoso",
+                "access": access,
+                "refresh": str(refresh),
+            },
             status=status.HTTP_200_OK
-        )
-        
-        response.set_cookie(
-            key='access',
-            value=access,
-            httponly=True,
-            secure=secure_flag,
-            samesite=samesite_flag,
-            max_age=access_lifetime,
-            path='/',
-            domain=None,
-        )
-        response.set_cookie(
-            key='refresh',
-            value=str(refresh),
-            httponly=True,
-            secure=secure_flag,
-            samesite=samesite_flag,
-            max_age=refresh_lifetime,
-            path='/',
-            domain=None,
         )
         
         return response
@@ -250,11 +228,12 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         return ip
 
 class CookieTokenRefreshView(TokenRefreshView):
-    """Refresca el access token usando el refresh guardado en cookies."""
+    """Refresca el access token usando el refresh desde body o cookies."""
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        refresh_token = request.COOKIES.get('refresh')
+        # Intentar obtener refresh token del body (localStorage) primero, luego de cookies
+        refresh_token = request.data.get('refresh') or request.COOKIES.get('refresh')
         if not refresh_token:
             return Response({"error": "No refresh token found"}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -270,38 +249,16 @@ class CookieTokenRefreshView(TokenRefreshView):
         new_access = response.data.get('access')
         new_refresh = response.data.get('refresh')  # Puede existir si ROTATE_REFRESH_TOKENS = True
 
-        # Configuración de cookies
-        access_lifetime = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
-        refresh_lifetime = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
-        secure_flag = not settings.DEBUG
-        samesite_flag = 'None'
-
-        # Actualizar access token
-        response.set_cookie(
-            key='access',
-            value=new_access,
-            httponly=True,
-            secure=secure_flag,
-            samesite=samesite_flag,
-            max_age=access_lifetime,
-            path='/',
-            domain=None,
-        )
-
-        # Si se rotó el refresh token, actualizar la cookie también
+        # Devolver tokens en el body para localStorage (en lugar de cookies)
+        response.data = {
+            "detail": "Token refreshed",
+            "access": new_access,
+        }
+        
+        # Si se rotó el refresh token, incluirlo también
         if new_refresh:
-            response.set_cookie(
-                key='refresh',
-                value=new_refresh,
-                httponly=True,
-                secure=secure_flag,
-                samesite=samesite_flag,
-                max_age=refresh_lifetime,
-                path='/',
-                domain=None,
-            )
-
-        response.data = {"detail": "Token refreshed"}
+            response.data['refresh'] = new_refresh
+        
         return response
 
 class CookieTokenVerifyView(TokenVerifyView):

@@ -6,11 +6,20 @@ export const registerRequest = (userData) => {
 };
 
 // Función para el endpoint de login (puede requerir MFA)
-export const loginRequest = (username, password, mfaCode = null, sessionId = null) => {
+export const loginRequest = async (username, password, mfaCode = null, sessionId = null) => {
     const data = mfaCode && sessionId 
         ? { mfa_code: mfaCode, session_id: sessionId }
         : { username, password };
-    return apiClient.post('/users-utils/login/', data);
+    
+    const response = await apiClient.post('/users-utils/login/', data);
+    
+    // Si el login es exitoso y devuelve tokens, guardarlos en localStorage
+    if (response.data.access && response.data.refresh) {
+        localStorage.setItem('access_token', response.data.access);
+        localStorage.setItem('refresh_token', response.data.refresh);
+    }
+    
+    return response;
 };
 
 // Función para reenviar código MFA
@@ -22,6 +31,9 @@ export const resendMFACodeRequest = (sessionId) => {
 
 // Función para el endpoint de logout
 export const logoutRequest = () => {
+    // Limpiar tokens de localStorage al cerrar sesión
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     return apiClient.post('/users-utils/logout/');
 };
 
@@ -32,7 +44,8 @@ export const verifyTokenRequest = () => {
 
 // Función para refrescar el token de acceso
 export const refreshTokenRequest = () => {
-  return apiClient.post('/users-utils/refresh/');
+  const refreshToken = localStorage.getItem('refresh_token');
+  return apiClient.post('/users-utils/refresh/', { refresh: refreshToken });
 };
 
 // Funciones para recuperación de contraseña

@@ -18,6 +18,14 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
+  // Obtener token de acceso desde localStorage
+  const accessToken = localStorage.getItem('access_token');
+  
+  if (accessToken) {
+    config.headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+  
+  // CSRF ya no es necesario con Authorization header, pero lo mantenemos por compatibilidad
   const csrfToken = document.cookie
     .split('; ')
     .find(row => row.startsWith('csrftoken='))
@@ -71,10 +79,8 @@ apiClient.interceptors.response.use(
       originalRequest.url?.includes(url)
     );
 
-    // Verificar si hay un token de refresh en las cookies antes de intentar refrescar
-    const hasRefreshToken = document.cookie
-      .split('; ')
-      .some(row => row.startsWith('refresh='));
+    // Verificar si hay un token de refresh en localStorage antes de intentar refrescar
+    const hasRefreshToken = !!localStorage.getItem('refresh_token');
 
     // Si el error es 401 y no es una petición de refresh/login/logout/register
     // Y hay un token de refresh disponible
@@ -98,14 +104,30 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Intentar refrescar el token (las cookies se actualizan automáticamente)
-        await refreshTokenRequest();
-        processQueue(null);
-        // Reintentar la petición original (las cookies ya están actualizadas)
+        // Intentar refrescar el token
+        const response = await refreshTokenRequest();
+        const newAccessToken = response.data.access;
+        const newRefreshToken = response.data.refresh;
+        
+        // Guardar nuevos tokens en localStorage
+        localStorage.setItem('access_token', newAccessToken);
+        if (newRefreshToken) {
+          localStorage.setItem('refresh_token', newRefreshToken);
+        }
+        
+        processQueue(null, newAccessToken);
+        
+        // Agregar el nuevo token al request original
+        originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+        
+        // Reintentar la petición original
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // Si el refresh falla, redirigir al login solo si no estamos ya en login
+        // Si el refresh falla, limpiar localStorage y redirigir al login
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
