@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework import serializers
 from django.utils import timezone
 from django.db import models
+from django.conf import settings
 from .models import Evento, CategoriaEvento, Inscripcion, Reseña
 from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer, ReseñaSerializer
 from .tasks import send_email_task, send_message_to_inscritos

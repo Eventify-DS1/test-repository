@@ -265,10 +265,30 @@ class EventoSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
        # Crea un evento asignando automáticamente el organizador
        # a partir del usuario autenticado en el contexto de la petición.
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Logs de diagnóstico
+        logger.info(f"📝 [SERIALIZER] Creando evento con validated_data keys: {list(validated_data.keys())}")
+        if 'foto' in validated_data:
+            foto = validated_data['foto']
+            logger.info(f"📷 [SERIALIZER] Foto recibida: {foto.name if hasattr(foto, 'name') else 'Sin nombre'}, tamaño: {foto.size if hasattr(foto, 'size') else 'desconocido'} bytes")
+        else:
+            logger.warning(f"⚠️ [SERIALIZER] NO se recibió foto en validated_data")
+        
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             validated_data['organizador'] = request.user
-        return Evento.objects.create(**validated_data)
+        
+        evento = Evento.objects.create(**validated_data)
+        
+        # Verificar después de crear
+        if evento.foto:
+            logger.info(f"✅ [SERIALIZER] Evento creado con foto guardada: {evento.foto.name}")
+        else:
+            logger.warning(f"❌ [SERIALIZER] Evento creado PERO foto NO se guardó")
+        
+        return evento
 
     
 
