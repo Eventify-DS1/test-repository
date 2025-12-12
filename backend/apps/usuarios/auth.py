@@ -4,11 +4,17 @@ from rest_framework import exceptions
 class CookieJWTAuthentication(JWTAuthentication):
     """
     Clase de autenticación personalizada que lee el JWT 'access' token
-    desde una cookie HttpOnly llamada 'access'.
+    desde el header Authorization o cookie HttpOnly llamada 'access' (fallback).
     """
     
     def authenticate(self, request):
-        raw_token = request.COOKIES.get('access')
+        # Primero intentar obtener el token del header Authorization (localStorage)
+        header = self.get_header(request)
+        if header is not None:
+            raw_token = self.get_raw_token(header)
+        else:
+            # Fallback: obtener de cookie si no está en header
+            raw_token = request.COOKIES.get('access')
         
         if raw_token is None:
             return None
