@@ -1,0 +1,43 @@
+╔════════════════════════════════════════════════════════════╗
+║  VARIABLES REQUERIDAS EN RAILWAY PARA CLOUDINARY          ║
+╚════════════════════════════════════════════════════════════╝
+
+📋 Instrucciones:
+
+1. Ve a: https://railway.app/
+2. Selecciona tu proyecto
+3. Click en el servicio "backend"
+4. Click en la pestaña "Variables"
+5. Agrega estas 4 variables:
+
+┌─────────────────────────────────────────────────────────┐
+│ Variable                  │ Valor                       │
+├───────────────────────────┼─────────────────────────────┤
+│ DEBUG                     │ False                       │
+│ CLOUDINARY_CLOUD_NAME     │ do1mvhvms                   │
+│ CLOUDINARY_API_KEY        │ [Tu API Key de Cloudinary]  │
+│ CLOUDINARY_API_SECRET     │ [Tu API Secret de Cloudinary]│
+└─────────────────────────────────────────────────────────┘
+
+⚠️ CRÍTICO:
+   - DEBUG debe ser exactamente "False" (con F mayúscula)
+   - Cloud name ya lo tienes: do1mvhvms
+   - API Key y Secret los obtienes en Cloudinary Dashboard
+
+🔑 Obtener API Key y Secret:
+   1. Ve a: https://cloudinary.com/console
+   2. En la página principal, busca "Account Details"
+   3. API Key: copia el número que aparece
+   4. API Secret: click en "Show" y copia el texto
+
+💾 Después de configurar:
+   - Railway redeployará automáticamente
+   - Espera 2-3 minutos
+   - Crea un nuevo evento con imagen
+   - La imagen se subirá a Cloudinary automáticamente
+
+✅ Para verificar que funcionó:
+   - Obtén el evento desde la API
+   - El campo "foto" debe tener una URL como:
+     https://res.cloudinary.com/do1mvhvms/image/upload/v.../eventos/nombre.jpg
+

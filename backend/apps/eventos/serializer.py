@@ -139,25 +139,31 @@ class EventoSerializer(serializers.ModelSerializer):
     
     def to_representation(self, instance):
         """
-        Sobrescribe la representación para devolver solo la ruta relativa de la foto
-        en lugar de la URL absoluta (que puede contener backend:8000).
+        Sobrescribe la representación para manejar URLs de foto correctamente.
+        - En Cloudinary: devuelve URL completa (https://res.cloudinary.com/...)
+        - En desarrollo local: devuelve ruta relativa (/media/...)
         """
         try:
             representation = super().to_representation(instance)
             foto_url = representation.get('foto')
-            if foto_url:
-                # Si es una URL absoluta, extraer solo la ruta relativa
-                if isinstance(foto_url, str) and (foto_url.startswith('http://') or foto_url.startswith('https://')):
+            
+            if foto_url and isinstance(foto_url, str):
+                # Si es Cloudinary (producción), mantener URL completa
+                if 'cloudinary.com' in foto_url:
+                    # Mantener la URL completa de Cloudinary
+                    representation['foto'] = foto_url
+                # Si es URL local de desarrollo (localhost/backend:8000)
+                elif foto_url.startswith('http://') or foto_url.startswith('https://'):
                     from urllib.parse import urlparse
                     parsed = urlparse(foto_url)
                     representation['foto'] = parsed.path
-                # Asegurar que comience con / si es una cadena y no está vacía
-                elif isinstance(foto_url, str) and foto_url and not foto_url.startswith('/'):
+                # Asegurar que rutas relativas comiencen con /
+                elif foto_url and not foto_url.startswith('/'):
                     representation['foto'] = f'/{foto_url}'
+            
             return representation
         except Exception as e:
             # Si hay un error en to_representation, intentar devolver la representación básica
-            # Esto puede pasar si el objeto aún no está completamente guardado
             import logging
             logger = logging.getLogger(__name__)
             logger.warning(f"Error en to_representation para evento {instance.pk if hasattr(instance, 'pk') else 'nuevo'}: {str(e)}")

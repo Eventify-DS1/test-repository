@@ -180,14 +180,31 @@ class EventoViewSet(viewsets.ModelViewSet):
         #antes de guardar el evento.
         # El serializer ya asigna el organizador en su método create(),
         # pero lo hacemos explícito aquí por si acaso
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Logs de diagnóstico de Cloudinary
+        logger.info(f"🔍 [CLOUDINARY] DEBUG mode: {settings.DEBUG}")
+        logger.info(f"🔍 [CLOUDINARY] DEFAULT_FILE_STORAGE: {getattr(settings, 'DEFAULT_FILE_STORAGE', 'No configurado')}")
+        
         event = serializer.save()
+        
+        # Verificar el storage usado para la foto
+        if event.foto:
+            storage_class = event.foto.storage.__class__.__name__
+            foto_url = event.foto.url
+            logger.info(f"✅ [CLOUDINARY] Evento creado con foto")
+            logger.info(f"   - Storage: {storage_class}")
+            logger.info(f"   - URL: {foto_url}")
+            logger.info(f"   - Name: {event.foto.name}")
+        else:
+            logger.info(f"⚠️ [CLOUDINARY] Evento creado SIN foto")
+        
         # Enviar email de confirmación de forma asíncrona
         try:
             send_email_task.delay(event.id, f"Evento {event.titulo} creado correctamente", self.request.user.email)
         except Exception as e:
             # Si falla el envío del email, no debe impedir la creación del evento
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Error al enviar email de confirmación: {str(e)}")
 
     def perform_update(self, serializer):

@@ -144,6 +144,7 @@ if DEBUG:
     # Desarrollo: almacenamiento local
     MEDIA_URL = '/media/'
     MEDIA_ROOT = BASE_DIR / 'media'
+    print("📁 [STORAGE] Usando almacenamiento LOCAL (DEBUG=True)")
 else:
     # Producción: Cloudinary
     import cloudinary
@@ -157,6 +158,22 @@ else:
         'API_SECRET': env('CLOUDINARY_API_SECRET', default=''),
     }
     
+    # Logs de diagnóstico
+    print("☁️ [STORAGE] Usando CLOUDINARY (DEBUG=False)")
+    print(f"   - Cloud Name: {CLOUDINARY_STORAGE['CLOUD_NAME'] or 'NO CONFIGURADO'}")
+    print(f"   - API Key: {'Configurado' if CLOUDINARY_STORAGE['API_KEY'] else 'NO CONFIGURADO'}")
+    print(f"   - API Secret: {'Configurado' if CLOUDINARY_STORAGE['API_SECRET'] else 'NO CONFIGURADO'}")
+    
+    if not CLOUDINARY_STORAGE['CLOUD_NAME'] or not CLOUDINARY_STORAGE['API_KEY'] or not CLOUDINARY_STORAGE['API_SECRET']:
+        print("❌ [ERROR] Faltan variables de Cloudinary. Las imágenes NO se subirán.")
+        print("   Variables faltantes en Railway:")
+        if not CLOUDINARY_STORAGE['CLOUD_NAME']:
+            print("   - CLOUDINARY_CLOUD_NAME")
+        if not CLOUDINARY_STORAGE['API_KEY']:
+            print("   - CLOUDINARY_API_KEY")
+        if not CLOUDINARY_STORAGE['API_SECRET']:
+            print("   - CLOUDINARY_API_SECRET")
+    
     cloudinary.config(
         cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
         api_key=CLOUDINARY_STORAGE['API_KEY'],
@@ -169,6 +186,8 @@ else:
     
     # URL base para archivos multimedia en Cloudinary
     MEDIA_URL = f'https://res.cloudinary.com/{CLOUDINARY_STORAGE["CLOUD_NAME"]}/'
+    print(f"   - MEDIA_URL: {MEDIA_URL}")
+    print(f"   - DEFAULT_FILE_STORAGE: {DEFAULT_FILE_STORAGE}")
 
 # ============================================
 # CORS & CSRF (Configuración Cross-Site)
