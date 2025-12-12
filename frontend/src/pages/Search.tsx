@@ -12,6 +12,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 import { getEventosStatsRequest, getEventosRequest, getCategoriasRequest, verifyTokenRequest } from "@/api/auth";
 import { getUserInscriptionsRequest } from "@/api/events";
 import { toast } from "sonner";
@@ -61,6 +70,12 @@ const Search = () => {
   const [subscribedEventIds, setSubscribedEventIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [loadingSubscriptions, setLoadingSubscriptions] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(12);
+  const [totalPages, setTotalPages] = useState(1);
+  const [count, setCount] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
 
 
   useEffect(() => {
@@ -144,7 +159,10 @@ const Search = () => {
     const fetchEventos = async () => {
       try {
         setLoading(true);
-        const params: any = {};
+        const params: any = {
+          page: page,
+          page_size: pageSize,
+        };
         
         if (searchTerm) {
           params.search = searchTerm;
@@ -160,15 +178,33 @@ const Search = () => {
         const response = await getEventosRequest(params);
         const eventosData = response.data.results || response.data;
         setEventos(Array.isArray(eventosData) ? eventosData : []);
+        
+        // Manejar información de paginación
+        if (response.data.count !== undefined) {
+          setCount(response.data.count);
+          const calculatedTotalPages = Math.ceil(response.data.count / pageSize);
+          setTotalPages(calculatedTotalPages);
+        }
+        setHasNext(!!response.data.next);
+        setHasPrevious(!!response.data.previous);
       } catch (error) {
         console.error('Error al cargar eventos:', error);
         setEventos([]);
+        setCount(0);
+        setTotalPages(1);
+        setHasNext(false);
+        setHasPrevious(false);
       } finally {
         setLoading(false);
       }
     };
 
     fetchEventos();
+  }, [searchTerm, categoryFilter, page, pageSize]);
+
+  // Resetear página cuando cambian los filtros
+  useEffect(() => {
+    setPage(1);
   }, [searchTerm, categoryFilter]);
 
 
@@ -346,6 +382,7 @@ const Search = () => {
                 setCategoryFilter("all");
                 setDateFilter("");
                 setSubscriptionFilter("all");
+                setPage(1);
               }}
             >
               Limpiar filtros
@@ -366,7 +403,7 @@ const Search = () => {
           <div className="flex justify-between items-center mb-6">
             <p className="text-muted-foreground">
               Mostrando <span className="font-bold text-foreground">{sortedEvents.length}</span> de{" "}
-              <span className="font-bold text-foreground">{totalEventos}</span> eventos
+              <span className="font-bold text-foreground">{count || totalEventos}</span> eventos
             </p>
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="w-48">
@@ -429,6 +466,7 @@ const Search = () => {
                     setCategoryFilter("all");
                     setDateFilter("");
                     setSubscriptionFilter("all");
+                    setPage(1);
                   }}
                 >
                   Limpiar filtros
@@ -441,6 +479,73 @@ const Search = () => {
                   Crear primer evento
                 </Button>
               </div>
+            </div>
+          )}
+
+          {/* Paginación */}
+          {!loading && sortedEvents.length > 0 && totalPages > 1 && (
+            <div className="mt-8 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => {
+                        if (hasPrevious) {
+                          setPage(page - 1);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }}
+                      className={!hasPrevious ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                    // Mostrar solo algunas páginas alrededor de la actual
+                    if (
+                      pageNum === 1 ||
+                      pageNum === totalPages ||
+                      (pageNum >= page - 2 && pageNum <= page + 2)
+                    ) {
+                      return (
+                        <PaginationItem key={pageNum}>
+                          <PaginationLink
+                            onClick={() => {
+                              setPage(pageNum);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            isActive={pageNum === page}
+                            className="cursor-pointer"
+                          >
+                            {pageNum}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    } else if (
+                      pageNum === page - 3 ||
+                      pageNum === page + 3
+                    ) {
+                      return (
+                        <PaginationItem key={pageNum}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    return null;
+                  })}
+                  
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => {
+                        if (hasNext) {
+                          setPage(page + 1);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }}
+                      className={!hasNext ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             </div>
           )}
         </div>

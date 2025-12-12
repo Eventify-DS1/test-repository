@@ -13,6 +13,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+  PaginationEllipsis,
+} from "@/components/ui/pagination";
 import { getEventosStatsRequest, getEventosRequest, getCategoriasRequest } from "@/api/auth";
 import { getImageUrl } from "@/utils/imageHelpers";
 
@@ -55,6 +64,12 @@ const EventsList = () => {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(12);
+  const [totalPages, setTotalPages] = useState(1);
+  const [count, setCount] = useState(0);
+  const [hasNext, setHasNext] = useState(false);
+  const [hasPrevious, setHasPrevious] = useState(false);
 
   // Leer categoría de la URL al montar
   useEffect(() => {
@@ -91,7 +106,10 @@ const EventsList = () => {
     const fetchEventos = async () => {
       try {
         setLoading(true);
-        const params: any = {};
+        const params: any = {
+          page: page,
+          page_size: pageSize,
+        };
         
         // Agregar búsqueda si existe
         if (searchTerm) {
@@ -110,15 +128,33 @@ const EventsList = () => {
         // DRF devuelve results si hay paginación, o el array directamente
         const eventosData = response.data.results || response.data;
         setEventos(Array.isArray(eventosData) ? eventosData : []);
+        
+        // Manejar información de paginación
+        if (response.data.count !== undefined) {
+          setCount(response.data.count);
+          const calculatedTotalPages = Math.ceil(response.data.count / pageSize);
+          setTotalPages(calculatedTotalPages);
+        }
+        setHasNext(!!response.data.next);
+        setHasPrevious(!!response.data.previous);
       } catch (error) {
         console.error('Error al cargar eventos:', error);
         setEventos([]);
+        setCount(0);
+        setTotalPages(1);
+        setHasNext(false);
+        setHasPrevious(false);
       } finally {
         setLoading(false);
       }
     };
 
     fetchEventos();
+  }, [searchTerm, categoryFilter, page, pageSize]);
+
+  // Resetear página cuando cambian los filtros
+  useEffect(() => {
+    setPage(1);
   }, [searchTerm, categoryFilter]);
 
   // Formatear fecha: "2024-01-15T14:30:00Z" → "15 de enero, 2024"
@@ -205,7 +241,8 @@ const EventsList = () => {
           {/* Stats */}
           <div className="mb-8 flex items-center justify-between">
             <p className="text-muted-foreground">
-              Mostrando <span className="font-bold text-foreground">{totalEventos}</span> eventos
+              Mostrando <span className="font-bold text-foreground">{eventos.length}</span> de{" "}
+              <span className="font-bold text-foreground">{count || totalEventos}</span> eventos
             </p>
           </div>
 
@@ -251,10 +288,78 @@ const EventsList = () => {
                 onClick={() => {
                   setSearchTerm("");
                   setCategoryFilter("all");
+                  setPage(1);
                 }}
               >
                 Limpiar filtros
               </Button>
+            </div>
+          )}
+
+          {/* Paginación */}
+          {!loading && filteredEvents.length > 0 && totalPages > 1 && (
+            <div className="mt-8 flex justify-center">
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => {
+                        if (hasPrevious) {
+                          setPage(page - 1);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }}
+                      className={!hasPrevious ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                  
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                    // Mostrar solo algunas páginas alrededor de la actual
+                    if (
+                      pageNum === 1 ||
+                      pageNum === totalPages ||
+                      (pageNum >= page - 2 && pageNum <= page + 2)
+                    ) {
+                      return (
+                        <PaginationItem key={pageNum}>
+                          <PaginationLink
+                            onClick={() => {
+                              setPage(pageNum);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            isActive={pageNum === page}
+                            className="cursor-pointer"
+                          >
+                            {pageNum}
+                          </PaginationLink>
+                        </PaginationItem>
+                      );
+                    } else if (
+                      pageNum === page - 3 ||
+                      pageNum === page + 3
+                    ) {
+                      return (
+                        <PaginationItem key={pageNum}>
+                          <PaginationEllipsis />
+                        </PaginationItem>
+                      );
+                    }
+                    return null;
+                  })}
+                  
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => {
+                        if (hasNext) {
+                          setPage(page + 1);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }}
+                      className={!hasNext ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
             </div>
           )}
 
