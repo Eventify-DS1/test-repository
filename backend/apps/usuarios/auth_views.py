@@ -226,6 +226,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             max_age=access_lifetime,
             path='/',
             domain=None,
+            partitioned=True,  # Necesario para permitir la cookie en contextos de terceros (Vercel -> Railway)
         )
         response.set_cookie(
             key='refresh',
@@ -236,6 +237,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             max_age=refresh_lifetime,
             path='/',
             domain=None,
+            partitioned=True,
         )
         
         return response
@@ -286,6 +288,7 @@ class CookieTokenRefreshView(TokenRefreshView):
             max_age=access_lifetime,
             path='/',
             domain=None,
+            partitioned=True,
         )
 
         # Si se rotó el refresh token, actualizar la cookie también
@@ -299,6 +302,7 @@ class CookieTokenRefreshView(TokenRefreshView):
                 max_age=refresh_lifetime,
                 path='/',
                 domain=None,
+                partitioned=True,
             )
 
         response.data = {"detail": "Token refreshed"}
