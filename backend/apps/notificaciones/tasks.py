@@ -5,6 +5,7 @@ from apps.eventos.models import Evento
 from apps.notificaciones.models import Notificacion, UsuarioNotificacion
 from datetime import timedelta
 from django.utils import timezone
+from django.contrib.auth import get_user_model
 import pytz
 
 def _crear_y_enviar_notificacion(evento, etiqueta, mensaje):
@@ -30,7 +31,6 @@ def _crear_y_enviar_notificacion(evento, etiqueta, mensaje):
             mensaje=mensaje
         )
     except Exception as e:
-        print(f"❌ Error al crear notificación para evento '{evento.titulo}': {str(e)}")
         return False
     
     # Obtener todos los usuarios que deben recibir la notificación
@@ -74,8 +74,8 @@ def _crear_y_enviar_notificacion(evento, etiqueta, mensaje):
                     }
                 }
             )
-        except Exception as e:
-            print(f"⚠️  Error al enviar WebSocket a usuario {usuario.username}: {str(e)}")
+        except Exception:
+            pass
     
     return True
 
@@ -171,11 +171,17 @@ def limpiar_notificaciones_eventos_finalizados():
     return f"Proceso completado. {cantidad_notificaciones} notificaciones eliminadas de {cantidad_eventos} eventos finalizados."
 
 
-def _crear_y_enviar_notificacion_cambio(evento, mensaje):
+def _crear_y_enviar_notificacion_cambio(evento, mensaje, enviar_correo=False):
     """
     Función auxiliar para crear una notificación de cambio de evento y enviarla a los usuarios.
     Incluye tanto al organizador como a los usuarios inscritos.
     Usa tipo 'evento' y etiqueta 'general'.
+    
+    Args:
+        evento: Instancia del evento
+        mensaje: Mensaje de la notificación
+        enviar_correo: Si True, envía correos electrónicos además de notificaciones WebSocket
+    
     Retorna True si se creó y envió, False si hubo error.
     """
     import logging
@@ -225,6 +231,8 @@ def _crear_y_enviar_notificacion_cambio(evento, mensaje):
     # Crear las relaciones UsuarioNotificacion y enviar por WebSocket
     notificaciones_enviadas = 0
     notificaciones_fallidas = 0
+    correos_enviados = 0
+    correos_fallidos = 0
     
     for usuario in usuarios_a_notificar:
         try:
@@ -260,19 +268,56 @@ def _crear_y_enviar_notificacion_cambio(evento, mensaje):
             notificaciones_enviadas += 1
             logger.debug(f"✅ [NOTIF_CAMBIO] WebSocket enviado exitosamente a usuario {usuario.username}")
             
+            # Enviar correo si está habilitado
+            if enviar_correo and usuario.email:
+                try:
+                    from django.core.mail import send_mail
+                    from django.conf import settings
+                    
+                    subject = f"Cambio en el evento '{evento.titulo}'"
+                    email_message = f"""
+Hola {usuario.first_name or usuario.username},
+
+{mensaje}
+
+Información del evento:
+- Título: {evento.titulo}
+- Fecha de inicio: {evento.fecha_inicio.strftime('%d/%m/%Y %H:%M')}
+- Fecha de fin: {evento.fecha_fin.strftime('%d/%m/%Y %H:%M')}
+- Ubicación: {evento.ubicacion}
+
+Saludos,
+Equipo Eventify
+"""
+                    send_mail(
+                        subject,
+                        email_message,
+                        settings.DEFAULT_FROM_EMAIL,
+                        [usuario.email],
+                        fail_silently=False
+                    )
+                    correos_enviados += 1
+                    logger.info(f"📧 [NOTIF_CAMBIO] Correo enviado a {usuario.email}")
+                except Exception as e_email:
+                    correos_fallidos += 1
+                    logger.error(f"❌ [NOTIF_CAMBIO] Error al enviar correo a {usuario.email}: {str(e_email)}")
+            
         except Exception as e:
             notificaciones_fallidas += 1
             logger.error(f"⚠️  [NOTIF_CAMBIO] Error al enviar WebSocket a usuario {usuario.username}: {str(e)}")
             import traceback
             logger.error(traceback.format_exc())
     
-    logger.info(f"📊 [NOTIF_CAMBIO] Resumen: {notificaciones_enviadas} notificaciones enviadas, {notificaciones_fallidas} fallidas")
+    resumen = f"📊 [NOTIF_CAMBIO] Resumen: {notificaciones_enviadas} notificaciones enviadas, {notificaciones_fallidas} fallidas"
+    if enviar_correo:
+        resumen += f" | Correos enviados: {correos_enviados}, Fallidos: {correos_fallidos}"
+    logger.info(resumen)
     
     return True
 
 
 @shared_task
-def notificar_cambio_evento(evento_id, campo_modificado, valor_anterior=None, valor_nuevo=None):
+def notificar_cambio_evento(evento_id, campo_modificado, valor_anterior=None, valor_nuevo=None, enviar_correo=False):
     """
     Tarea Celery para notificar al organizador y a los participantes cuando se modifica:
     - ubicacion
@@ -284,10 +329,11 @@ def notificar_cambio_evento(evento_id, campo_modificado, valor_anterior=None, va
         campo_modificado: 'ubicacion', 'fecha_inicio', o 'fecha_fin'
         valor_anterior: Valor anterior del campo (opcional, para el mensaje)
         valor_nuevo: Valor nuevo del campo (opcional, para el mensaje)
+        enviar_correo: Si True, envía correos electrónicos además de notificaciones WebSocket
     """
     import logging
     logger = logging.getLogger(__name__)
-    
+    print("notificar_cambio_evento dispatch")
     logger.info(f"🔔 [CELERY] Iniciando tarea de notificación de cambio para evento ID: {evento_id}")
     logger.info(f"📋 [CELERY] Campo modificado: {campo_modificado}")
     logger.debug(f"📋 [CELERY] Valor anterior: {valor_anterior}")
@@ -340,8 +386,8 @@ def notificar_cambio_evento(evento_id, campo_modificado, valor_anterior=None, va
         return error_msg
     
     # Crear y enviar notificación (usa etiqueta 'general')
-    logger.info(f"🚀 [CELERY] Llamando a _crear_y_enviar_notificacion_cambio()...")
-    resultado = _crear_y_enviar_notificacion_cambio(evento, mensaje)
+    logger.info(f"🚀 [CELERY] Llamando a _crear_y_enviar_notificacion_cambio()... enviar_correo: {enviar_correo}")
+    resultado = _crear_y_enviar_notificacion_cambio(evento, mensaje, enviar_correo=enviar_correo)
     
     if resultado:
         success_msg = f"Notificación de cambio de {campo_modificado} enviada para el evento '{evento.titulo}'."
@@ -351,3 +397,129 @@ def notificar_cambio_evento(evento_id, campo_modificado, valor_anterior=None, va
         error_msg = f"No se pudo enviar la notificación de cambio de {campo_modificado} para el evento '{evento.titulo}'."
         logger.error(f"❌ [CELERY] {error_msg}")
         return error_msg
+
+
+@shared_task
+def notificar_eliminacion_evento(evento_id, titulo_evento, organizador_id, participantes_ids, enviar_correo=False):
+    """
+    Notifica al organizador y participantes cuando se elimina un evento.
+    No enlaza la notificación al evento (evento=None) para evitar que se elimine por cascade.
+    
+    Args:
+        evento_id: ID del evento eliminado
+        titulo_evento: Título del evento
+        organizador_id: ID del organizador
+        participantes_ids: Lista de IDs de participantes
+        enviar_correo: Si True, envía correos electrónicos además de notificaciones WebSocket
+    """
+    import logging
+    from django.core.mail import send_mail
+    from django.conf import settings
+    logger = logging.getLogger(__name__)
+    User = get_user_model()
+    print("notificar_eliminacion_evento dispatch")
+
+    logger.info(f"🗑️ [CELERY] Iniciando notificación de eliminación para evento ID: {evento_id}, título: '{titulo_evento}', enviar_correo: {enviar_correo}")
+
+    # Deduplicar usuarios (organizador + participantes)
+    usuarios_ids = set(participantes_ids or [])
+    if organizador_id:
+        usuarios_ids.add(organizador_id)
+
+    if not usuarios_ids:
+        logger.warning("⚠️ [CELERY] No hay usuarios para notificar sobre la eliminación")
+        return "Sin usuarios a notificar"
+
+    mensaje = f"El evento '{titulo_evento}' ha sido eliminado."
+
+    try:
+        notificacion = Notificacion.objects.create(
+            evento=None,
+            tipo='evento',
+            etiqueta='general',
+            mensaje=mensaje
+        )
+        logger.info(f"✅ [CELERY] Notificación de eliminación creada con ID {notificacion.id}")
+    except Exception as e:
+        logger.error(f"❌ [CELERY] Error al crear notificación de eliminación: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return f"Error al crear notificación: {str(e)}"
+
+    enviados = 0
+    fallidos = 0
+    correos_enviados = 0
+    correos_fallidos = 0
+
+    for uid in usuarios_ids:
+        try:
+            usuario = User.objects.get(id=uid)
+            UsuarioNotificacion.objects.get_or_create(
+                usuario=usuario,
+                notificacion=notificacion,
+                defaults={'leida': False}
+            )
+
+            # Enviar WebSocket
+            channel_layer = get_channel_layer()
+            grupo_usuario = f"user_{usuario.id}"
+            
+            async_to_sync(channel_layer.group_send)(
+                grupo_usuario,
+                {
+                    'type': 'send_notification',
+                    'notification': {
+                        'id': notificacion.id,
+                        'tipo': notificacion.tipo,
+                        'mensaje': notificacion.mensaje,
+                        'evento_id': evento_id,
+                        'evento_titulo': titulo_evento,
+                        'fecha_envio': notificacion.fecha_envio.isoformat(),
+                        'leida': False
+                    }
+                }
+            )
+            enviados += 1
+            
+            # Enviar correo si está habilitado
+            if enviar_correo and usuario.email:
+                try:
+                    subject = f"Evento '{titulo_evento}' eliminado"
+                    email_message = f"""
+Hola {usuario.first_name or usuario.username},
+
+Te informamos que el evento "{titulo_evento}" ha sido eliminado por el organizador.
+
+Si tenías alguna inscripción o interés en este evento, lamentamos las molestias.
+
+Saludos,
+Equipo Eventify
+"""
+                    send_mail(
+                        subject,
+                        email_message,
+                        settings.DEFAULT_FROM_EMAIL,
+                        [usuario.email],
+                        fail_silently=False
+                    )
+                    correos_enviados += 1
+                    logger.info(f"📧 [CELERY] Correo enviado a {usuario.email}")
+                except Exception as e_email:
+                    correos_fallidos += 1
+                    logger.error(f"❌ [CELERY] Error al enviar correo a {usuario.email}: {str(e_email)}")
+                    
+        except User.DoesNotExist:
+            fallidos += 1
+            logger.error(f"⚠️ [CELERY] Usuario {uid} no encontrado")
+        except Exception as e:
+            fallidos += 1
+            logger.error(f"⚠️ [CELERY] Error al enviar notificación de eliminación al usuario {uid}: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    resultado = f"Eliminación notificada. Exitosas: {enviados}, Fallidas: {fallidos}"
+    if enviar_correo:
+        resultado += f" | Correos enviados: {correos_enviados}, Fallidos: {correos_fallidos}"
+    
+    logger.info(f"📊 [CELERY] {resultado}")
+    return resultado
