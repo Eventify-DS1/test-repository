@@ -3,9 +3,19 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star, Download, Share2, Mail } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/layout/Header";
@@ -103,6 +113,10 @@ const EventDetail = () => {
   const [messageSubject, setMessageSubject] = useState("");
   const [messageContent, setMessageContent] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [enviarCorreoEliminar, setEnviarCorreoEliminar] = useState(false);
+
   // Memoizar handlers para evitar re-renderizados innecesarios del Dialog
   const handleSubjectChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation();
@@ -472,15 +486,33 @@ const EventDetail = () => {
 
     const isOwner = effectiveCurrentUser?.id === evento?.organizador?.id;
 
-    const handleDelete = async (id: number) => {
-      if (!confirm("¿Seguro que quieres eliminar este evento?")) return;
+    const handleDeleteClick = () => {
+      setShowDeleteDialog(true);
+    };
+
+    const handleConfirmDelete = async () => {
+      if (!evento?.id) return;
+      
+      setIsDeleting(true);
       try {
-        await deleteEventRequest(id);
-        alert("Evento eliminado");
-        window.location.href = "/dashboard/search";
-      } catch (err) {
+        await deleteEventRequest(evento.id, enviarCorreoEliminar);
+        toast({
+          title: "Evento eliminado",
+          description: "El evento ha sido eliminado correctamente.",
+          variant: "default",
+        });
+        navigate("/dashboard/search");
+      } catch (err: any) {
         console.error(err);
-        alert("No se pudo eliminar el evento");
+        toast({
+          title: "Error al eliminar",
+          description: err?.response?.data?.detail || "No se pudo eliminar el evento. Por favor, intenta de nuevo.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsDeleting(false);
+        setShowDeleteDialog(false);
+        setEnviarCorreoEliminar(false);
       }
     };
 
@@ -1054,7 +1086,7 @@ const EventDetail = () => {
                     <Button
                         className="w-full bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                         variant="destructive"
-                    onClick={() => handleDelete(evento.id)}
+                        onClick={handleDeleteClick}
                     >
                       Borrar evento
                       </Button>
@@ -1070,6 +1102,57 @@ const EventDetail = () => {
                       </div>
                     )}
 
+              {/* Diálogo de confirmación para eliminar evento */}
+              <AlertDialog open={showDeleteDialog} onOpenChange={(open) => !isDeleting && setShowDeleteDialog(open)}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás seguro de eliminar el evento?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {isDeleting 
+                        ? "Eliminando evento y notificando a los participantes..." 
+                        : "Esta acción no se puede deshacer. El evento será eliminado permanentemente y se notificará a todos los participantes inscritos."}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  {isDeleting && (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="h-6 w-6 animate-spin text-destructive" />
+                    </div>
+                  )}
+                  {!isDeleting && (
+                    <div className="flex items-center space-x-2 py-2">
+                      <Checkbox
+                        id="enviar-correo-eliminar"
+                        checked={enviarCorreoEliminar}
+                        onCheckedChange={(checked) => setEnviarCorreoEliminar(checked === true)}
+                      />
+                      <label
+                        htmlFor="enviar-correo-eliminar"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        Enviar correo electrónico a los participantes
+                      </label>
+                    </div>
+                  )}
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+                    <Button
+                      type="button"
+                      onClick={handleConfirmDelete}
+                      disabled={isDeleting}
+                      className="inline-flex items-center justify-center gap-2 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span>Eliminando...</span>
+                        </>
+                      ) : (
+                        "Eliminar"
+                      )}
+                    </Button>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
               {evento.inscritos && evento.inscritos.length > 0 ? (
                 <div className="pt-4 border-t">

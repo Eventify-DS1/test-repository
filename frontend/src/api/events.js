@@ -16,8 +16,10 @@ export const createEventRequest = (eventData) => {
 };
 
 // Eliminar evento por ID
-export const deleteEventRequest = (id) => {
-  return apiClient.delete(`/events-utils/eventos/${id}/`);
+export const deleteEventRequest = (id, enviarCorreo = false) => {
+  return apiClient.delete(`/events-utils/eventos/${id}/`, {
+    data: { enviar_correo: enviarCorreo }
+  });
 };
 
 
