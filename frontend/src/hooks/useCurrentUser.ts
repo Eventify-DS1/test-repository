@@ -39,8 +39,15 @@ export const useCurrentUser = (options?: {
   } = useQuery<Usuario>({
     queryKey: ["currentUser"],
     queryFn: async () => {
-      const response = await getCurrentUserRequest();
-      return response.data;
+      try {
+        const response = await getCurrentUserRequest();
+        return response.data;
+      } catch (error: any) {
+        if (error.response.status === 401) {
+          return null;
+        }
+        throw error;
+      }
     },
     staleTime: options?.staleTime ?? 5 * 60 * 1000, // 5 minutos por defecto
     gcTime: options?.cacheTime ?? 10 * 60 * 1000, // 10 minutos por defecto (gcTime en v5, cacheTime en v4)

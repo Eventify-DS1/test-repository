@@ -11,6 +11,7 @@ import { AnimatedCounter, AnimatedTitle, StaggeredCards } from "@/components/ani
 import heroImage from "@/assets/hero-image.jpg";
 import studentsCollaboration from "@/assets/students-collaboration.jpg";
 import { getEventosStatsRequest, getUsuariosStatsRequest, getCategoriasStatsRequest, getEventosRequest, getCategoriasRequest } from "@/api/auth";
+import { getPopularEventsRequest } from "@/api/events";
 import { getCategoryIcon } from "@/utils/categoryIcons";
 import { getImageUrl } from "@/utils/imageHelpers";
 
@@ -162,27 +163,18 @@ const Landing = () => {
     });
   };
 
-  // Cargar eventos destacados (3 con mayor número de inscritos)
+  // Cargar eventos destacados (3 con mayor número de inscritos que aún no han pasado)
   useEffect(() => {
     const fetchFeaturedEvents = async () => {
       try {
         setLoadingEvents(true);
-        // Paso 1: Obtener todos los eventos del backend
-        const response = await getEventosRequest();
-        const eventosData = response.data.results || response.data;
+        // Usar el endpoint de eventos populares que ya filtra eventos futuros y los ordena
+        const response = await getPopularEventsRequest();
+        const eventosData = response.data;
         const eventos = Array.isArray(eventosData) ? eventosData : [];
         
-        // Paso 2: Ordenar por número de inscritos (mayor a menor)
-        const eventosOrdenados = eventos
-          .sort((a: EventoBackend, b: EventoBackend) => 
-            (b.numero_inscritos || 0) - (a.numero_inscritos || 0)
-          );
-        
-        // Paso 3: Tomar solo los primeros 3
-        const top3Eventos = eventosOrdenados.slice(0, 3);
-        
-        // Paso 4: Mapear al formato que espera EventCard
-        const eventosMapeados = top3Eventos.map((evento: EventoBackend) => ({
+        // Mapear al formato que espera EventCard
+        const eventosMapeados = eventos.map((evento: EventoBackend) => ({
           id: evento.id.toString(),
           title: evento.titulo,
           category: evento.categoria?.nombre || "Sin categoría",
