@@ -199,11 +199,6 @@ class UsuarioViewSet(viewsets.ModelViewSet):
                 "email_sent": email_sent
             }
             
-            # Solo en desarrollo, incluir el código en la respuesta para facilitar pruebas
-            if not email_sent and settings.DEBUG:
-                response_data["codigo"] = mfa_code_obj.codigo
-                response_data["warning"] = "Código mostrado solo en modo desarrollo. Configura el email para producción."
-            
             return Response(
                 response_data,
                 status=status.HTTP_201_CREATED,

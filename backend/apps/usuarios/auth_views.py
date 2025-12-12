@@ -138,11 +138,6 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             "email_sent": email_sent
         }
         
-        # Solo en desarrollo, incluir el código en la respuesta para facilitar pruebas
-        if not email_sent and settings.DEBUG:
-            response_data["codigo"] = mfa_code_obj.codigo
-            response_data["warning"] = "Código mostrado solo en modo desarrollo. Configura el email para producción."
-        
         return Response(response_data, status=status.HTTP_200_OK)
     
     def _verify_mfa_and_login(self, request, mfa_code, session_id):
@@ -404,16 +399,10 @@ class MFAResendCodeView(APIView):
                     email_sent = False
             
             # Si el email no se pudo enviar, devolver advertencia pero permitir continuar
-            # En desarrollo, incluir el código en la respuesta para facilitar pruebas
             response_data = {
                 "detail": "Código de verificación reenviado" if email_sent else "No se pudo enviar el código por email. Verifica la configuración de email.",
                 "email_sent": email_sent
             }
-            
-            # Solo en desarrollo, incluir el código en la respuesta
-            if not email_sent and settings.DEBUG:
-                response_data["codigo"] = mfa_code_obj.codigo
-                response_data["warning"] = "Código mostrado solo en modo desarrollo. Configura el email para producción."
             
             return Response(response_data, status=status.HTTP_200_OK)
         else:
@@ -447,16 +436,10 @@ class MFAResendCodeView(APIView):
                     email_sent = False
             
             # Si el email no se pudo enviar, devolver advertencia pero permitir continuar
-            # En desarrollo, incluir el código en la respuesta para facilitar pruebas
             response_data = {
                 "detail": "Código de verificación reenviado" if email_sent else "No se pudo enviar el código por email. Verifica la configuración de email.",
                 "email_sent": email_sent
             }
-            
-            # Solo en desarrollo, incluir el código en la respuesta
-            if not email_sent and settings.DEBUG:
-                response_data["codigo"] = new_mfa_code.codigo
-                response_data["warning"] = "Código mostrado solo en modo desarrollo. Configura el email para producción."
             
             return Response(response_data, status=status.HTTP_200_OK)
 
@@ -517,11 +500,6 @@ class PasswordResetRequestView(APIView):
             "session_id": session_id,
             "email_sent": email_sent
         }
-        
-        # Solo en desarrollo, incluir el código en la respuesta
-        if not email_sent and settings.DEBUG:
-            response_data["codigo"] = reset_code_obj.codigo
-            response_data["warning"] = "Código mostrado solo en modo desarrollo. Configura el email para producción."
         
         return Response(response_data, status=status.HTTP_200_OK)
 
