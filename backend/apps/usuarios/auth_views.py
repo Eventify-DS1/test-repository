@@ -209,7 +209,8 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         access_lifetime = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
         refresh_lifetime = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
         secure_flag = not settings.DEBUG
-        samesite_flag = 'Strict' if not settings.DEBUG else 'Lax'  # Strict en producción, Lax en desarrollo
+        # Para permitir cookies entre dominios (Vercel -> Railway) se requiere SameSite=None
+        samesite_flag = 'None'
         
         response = Response(
             {"detail": "Login exitoso"},
@@ -273,7 +274,7 @@ class CookieTokenRefreshView(TokenRefreshView):
         access_lifetime = int(settings.SIMPLE_JWT['ACCESS_TOKEN_LIFETIME'].total_seconds())
         refresh_lifetime = int(settings.SIMPLE_JWT['REFRESH_TOKEN_LIFETIME'].total_seconds())
         secure_flag = not settings.DEBUG
-        samesite_flag = 'Strict' if not settings.DEBUG else 'Lax'  # Strict en producción, Lax en desarrollo
+        samesite_flag = 'None'
 
         # Actualizar access token
         response.set_cookie(
