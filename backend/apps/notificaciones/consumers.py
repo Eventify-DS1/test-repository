@@ -121,29 +121,45 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         """
         Valida el token JWT y retorna el usuario asociado.
         """
-        try:
-            # Validar el token
-            UntypedToken(token)
+            if not token:
+                print("❌ [get_user_from_token] Token no encontrado en cookies")
+                return None
+
+            print(f"🧐 [get_user_from_token] Validando token. Tipo: {type(token)}")
+
+            # Asegurar que el token saa compatible (algunas versiones de JWT piden bytes)
+            # Pero normalmente SimpleJWT maneja strings.
+            try:
+                UntypedToken(token)
+            except Exception as e:
+                # Si falla, intentar encodeo a bytes por si acaso
+                print(f"⚠️ Falló validación inicial: {e}. Intentando con bytes...")
+                if isinstance(token, str):
+                    UntypedToken(token.encode('utf-8'))
             
-            # Decodificar el token para obtener el user_id
+            # Decodificar para obtener ID
+            # Usar jwt.decode directamente puede ser redundante pero seguro
             decoded_data = jwt_decode(
                 token,
                 settings.SECRET_KEY,
                 algorithms=["HS256"]
             )
             
-            # Obtener el usuario
             user_id = decoded_data.get('user_id')
             if user_id:
                 try:
                     user = User.objects.get(id=user_id)
                     return user
                 except User.DoesNotExist:
+                    print(f"❌ Usuario con ID {user_id} no encontrado")
                     return None
             return None
             
-        except (InvalidToken, TokenError, Exception) as e:
-            print(f"Error al validar token: {str(e)}")
+        except (InvalidToken, TokenError) as e:
+            print(f"❌ Token inválido o expirado: {str(e)}")
+            return None
+        except Exception as e:
+            print(f"❌ Error inesperado al validar token: {str(e)}")
             return None
 
 
