@@ -66,6 +66,10 @@ INSTALLED_APPS = [
     'channels',              
     'django_celery_beat',
     
+    # Cloudinary para almacenamiento en la nube
+    'cloudinary_storage',
+    'cloudinary',
+    
     'apps.usuarios',
     'apps.eventos',
     'apps.notificaciones',
@@ -129,8 +133,42 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
+
+# ============================================
+# CONFIGURACIÓN DE MEDIOS (LOCAL vs CLOUDINARY)
+# ============================================
+
+# En desarrollo: usar almacenamiento local
+# En producción: usar Cloudinary
+if DEBUG:
+    # Desarrollo: almacenamiento local
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = BASE_DIR / 'media'
+else:
+    # Producción: Cloudinary
+    import cloudinary
+    import cloudinary.uploader
+    import cloudinary.api
+    
+    # Configurar Cloudinary con variables de entorno
+    CLOUDINARY_STORAGE = {
+        'CLOUD_NAME': env('CLOUDINARY_CLOUD_NAME', default=''),
+        'API_KEY': env('CLOUDINARY_API_KEY', default=''),
+        'API_SECRET': env('CLOUDINARY_API_SECRET', default=''),
+    }
+    
+    cloudinary.config(
+        cloud_name=CLOUDINARY_STORAGE['CLOUD_NAME'],
+        api_key=CLOUDINARY_STORAGE['API_KEY'],
+        api_secret=CLOUDINARY_STORAGE['API_SECRET'],
+        secure=True
+    )
+    
+    # Usar Cloudinary como storage backend
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    
+    # URL base para archivos multimedia en Cloudinary
+    MEDIA_URL = f'https://res.cloudinary.com/{CLOUDINARY_STORAGE["CLOUD_NAME"]}/'
 
 # ============================================
 # CORS & CSRF (Configuración Cross-Site)
