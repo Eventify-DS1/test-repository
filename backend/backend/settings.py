@@ -178,16 +178,14 @@ CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_AGE = None
 
-# IMPORTANTE: HttpOnly False para el token CSRF para que el Frontend pueda leerlo y enviarlo en el header
-CSRF_COOKIE_HTTPONLY = False 
-# IMPORTANTE: HttpOnly True para la Session ID (seguridad)
+# Configuración de cookies de sesión
+# IMPORTANTE: SameSite='None' y Secure=True son requeridos para que lsa cookies viajen 
+# entre dominios diferentes (Vercel -> Railway)
 SESSION_COOKIE_HTTPONLY = True
-
-# CONFIGURACIÓN CRÍTICA PARA VERCEL <-> RAILWAY
-# Al ser dominios distintos, necesitamos SameSite='None' y Secure=True
 SESSION_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SAMESITE = 'None'
 SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = True
+CSRF_COOKIE_SAMESITE = 'None' 
 CSRF_COOKIE_SECURE = True
 
 # ============================================
