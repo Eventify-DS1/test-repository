@@ -8,6 +8,7 @@ from django.db import models
 from .models import Evento, CategoriaEvento, Inscripcion, Reseña
 from .serializer import EventoSerializer, CategoriaEventoSerializer, InscripcionSerializer, InscripcionDetalleSerializer, EstadisticasEventosSerializer, EstadisticasCategoriasSerializer, ReseñaSerializer
 from .tasks import send_email_task, send_message_to_inscritos
+from apps.notificaciones.tasks import notificar_cambio_evento
 
 class CategoriaEventoViewSet(viewsets.ModelViewSet):
     """
@@ -189,6 +190,84 @@ class EventoViewSet(viewsets.ModelViewSet):
             logger = logging.getLogger(__name__)
             logger.error(f"Error al enviar email de confirmación: {str(e)}")
 
+    def perform_update(self, serializer):
+        """
+        Detecta cambios en ubicacion, fecha_inicio o fecha_fin y notifica a los participantes.
+        Funciona tanto con PUT (actualización completa) como con PATCH (actualización parcial).
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Obtener la instancia antes de guardar para comparar valores
+        instance = serializer.instance
+        logger.info(f"🔄 [UPDATE] Iniciando actualización del evento ID: {instance.id}, Título: {instance.titulo}")
+        
+        # Guardar valores anteriores ANTES de guardar
+        ubicacion_anterior = instance.ubicacion
+        fecha_inicio_anterior = instance.fecha_inicio
+        fecha_fin_anterior = instance.fecha_fin
+        
+        logger.debug(f"📋 [UPDATE] Valores anteriores - Ubicación: {ubicacion_anterior}, Fecha inicio: {fecha_inicio_anterior}, Fecha fin: {fecha_fin_anterior}")
+        
+        # Guardar el evento actualizado
+        evento_actualizado = serializer.save()
+        
+        # Refrescar desde BD para obtener valores finales
+        evento_actualizado.refresh_from_db()
+        
+        logger.debug(f"📋 [UPDATE] Valores nuevos - Ubicación: {evento_actualizado.ubicacion}, Fecha inicio: {evento_actualizado.fecha_inicio}, Fecha fin: {evento_actualizado.fecha_fin}")
+        
+        # Detectar cambios comparando valores anteriores con los nuevos
+        campos_cambiados = []
+        
+        # Verificar cambio de ubicación
+        if evento_actualizado.ubicacion != ubicacion_anterior:
+            logger.info(f"📍 [UPDATE] Cambio detectado en UBICACIÓN: '{ubicacion_anterior}' → '{evento_actualizado.ubicacion}'")
+            campos_cambiados.append({
+                'campo': 'ubicacion',
+                'valor_anterior': ubicacion_anterior,
+                'valor_nuevo': evento_actualizado.ubicacion
+            })
+        
+        # Verificar cambio de fecha_inicio
+        if evento_actualizado.fecha_inicio != fecha_inicio_anterior:
+            logger.info(f"📅 [UPDATE] Cambio detectado en FECHA_INICIO: '{fecha_inicio_anterior}' → '{evento_actualizado.fecha_inicio}'")
+            campos_cambiados.append({
+                'campo': 'fecha_inicio',
+                'valor_anterior': fecha_inicio_anterior.strftime('%d/%m/%Y %H:%M') if fecha_inicio_anterior else None,
+                'valor_nuevo': evento_actualizado.fecha_inicio.strftime('%d/%m/%Y %H:%M') if evento_actualizado.fecha_inicio else None
+            })
+        
+        # Verificar cambio de fecha_fin
+        if evento_actualizado.fecha_fin != fecha_fin_anterior:
+            logger.info(f"📅 [UPDATE] Cambio detectado en FECHA_FIN: '{fecha_fin_anterior}' → '{evento_actualizado.fecha_fin}'")
+            campos_cambiados.append({
+                'campo': 'fecha_fin',
+                'valor_anterior': fecha_fin_anterior.strftime('%d/%m/%Y %H:%M') if fecha_fin_anterior else None,
+                'valor_nuevo': evento_actualizado.fecha_fin.strftime('%d/%m/%Y %H:%M') if evento_actualizado.fecha_fin else None
+            })
+        
+        if not campos_cambiados:
+            logger.info(f"ℹ️  [UPDATE] No se detectaron cambios en ubicación, fecha_inicio o fecha_fin para el evento {evento_actualizado.id}")
+        else:
+            logger.info(f"🔔 [UPDATE] Se detectaron {len(campos_cambiados)} cambio(s). Enviando notificaciones...")
+        
+        # Enviar notificaciones para cada campo cambiado
+        for cambio in campos_cambiados:
+            try:
+                logger.info(f"📤 [UPDATE] Enviando tarea Celery para notificar cambio de '{cambio['campo']}' en evento {evento_actualizado.id}")
+                notificar_cambio_evento.delay(
+                    evento_actualizado.id,
+                    cambio['campo'],
+                    cambio['valor_anterior'],
+                    cambio['valor_nuevo']
+                )
+                logger.info(f"✅ [UPDATE] Tarea Celery enviada exitosamente para cambio de '{cambio['campo']}'")
+            except Exception as e:
+                # Si falla la notificación, no debe impedir la actualización del evento
+                logger.error(f"❌ [UPDATE] Error al enviar tarea Celery para cambio de {cambio['campo']} en evento {evento_actualizado.id}: {str(e)}")
+                import traceback
+                logger.error(traceback.format_exc())
 
     def create(self, request, *args, **kwargs):
         """

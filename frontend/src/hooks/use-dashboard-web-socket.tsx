@@ -101,6 +101,11 @@ export const useDashboardWebSocket = () => {
                         // Añadir notificación al estado
                         setNotifications(prev => [notification, ...prev]);
                         
+                        // Emitir evento personalizado para que los componentes puedan recargar
+                        window.dispatchEvent(new CustomEvent('newNotification', { 
+                            detail: notification 
+                        }));
+                        
                         // Mostrar toast con el mensaje de recordatorio
                         toast.info(notification.mensaje || 'Nueva notificación', {
                             description: notification.evento_titulo 

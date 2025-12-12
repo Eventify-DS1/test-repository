@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ const Notifications = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
 
-  const fetchNotifications = async (pageNum: number = 1) => {
+  const fetchNotifications = useCallback(async (pageNum: number = 1) => {
     setLoading(true);
     try {
       const response = await getAllNotificationsRequest({
@@ -50,11 +50,25 @@ const Notifications = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchNotifications(1);
-  }, []);
+  }, [fetchNotifications]);
+
+  // Escuchar eventos de nuevas notificaciones desde WebSocket
+  useEffect(() => {
+    const handleNewNotification = () => {
+      // Recargar notificaciones cuando llegue una nueva por WebSocket
+      fetchNotifications(1);
+    };
+
+    window.addEventListener('newNotification', handleNewNotification);
+    
+    return () => {
+      window.removeEventListener('newNotification', handleNewNotification);
+    };
+  }, [fetchNotifications]);
 
   const handleMarkAsRead = (id: number) => {
     setNotifications((prev) =>
@@ -62,6 +76,10 @@ const Notifications = () => {
         notif.id === id ? { ...notif, leida: true } : notif
       )
     );
+  };
+
+  const handleDelete = (id: number) => {
+    setNotifications((prev) => prev.filter((notif) => notif.id !== id));
   };
 
   const handleLoadMore = () => {
@@ -116,6 +134,7 @@ const Notifications = () => {
                   key={notification.id}
                   {...notification}
                   onMarkAsRead={handleMarkAsRead}
+                  onDelete={handleDelete}
                 />
               ))}
               
