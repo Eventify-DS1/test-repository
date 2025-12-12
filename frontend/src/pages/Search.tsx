@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { Search as SearchIcon, Filter, Plus } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Search as SearchIcon, Filter, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import Sidebar from "@/components/layout/Sidebar";
 import EventCard from "@/components/events/EventCard";
@@ -12,15 +12,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-  PaginationEllipsis,
-} from "@/components/ui/pagination";
 import { getEventosStatsRequest, getEventosRequest, getCategoriasRequest, verifyTokenRequest } from "@/api/auth";
 import { getUserInscriptionsRequest } from "@/api/events";
 import { toast } from "sonner";
@@ -64,6 +55,8 @@ const Search = () => {
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState("");
   const [subscriptionFilter, setSubscriptionFilter] = useState<string>("all"); // all, subscribed, not_subscribed
+  const [locationFilter, setLocationFilter] = useState<string>("all"); // all, or specific location
+  const [timeFilter, setTimeFilter] = useState<string>("future"); // future, all, past - Por defecto "future"
   const [sortBy, setSortBy] = useState<string>("date"); // date, popular, capacity
   const [totalEventos, setTotalEventos] = useState(0);
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -71,13 +64,13 @@ const Search = () => {
   const [subscribedEventIds, setSubscribedEventIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
   const [loadingSubscriptions, setLoadingSubscriptions] = useState(true);
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(12);
+  
+  // Estados para paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [hasPreviousPage, setHasPreviousPage] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
-  const [count, setCount] = useState(0);
-  const [hasNext, setHasNext] = useState(false);
-  const [hasPrevious, setHasPrevious] = useState(false);
-  const [allEventos, setAllEventos] = useState<Evento[]>([]); // Para almacenar todos los eventos cuando ordenamos por fecha
+  const [totalCount, setTotalCount] = useState(0);
 
 
   useEffect(() => {
@@ -156,111 +149,95 @@ const Search = () => {
     fetchUserSubscriptions();
   }, []);
 
+  // Resetear a página 1 cuando cambian los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, dateFilter, subscriptionFilter, locationFilter, timeFilter, sortBy]);
 
   useEffect(() => {
     const fetchEventos = async () => {
       try {
         setLoading(true);
+        const ahora = new Date().toISOString();
+        const params: any = {
+          page: currentPage,
+          page_size: 9,  // Mostrar 9 eventos por página
+        };
         
-        // Si ordenamos por fecha, necesitamos cargar todos los eventos para ordenarlos correctamente
-        // antes de paginar
+        if (searchTerm) {
+          params.search = searchTerm;
+        }
+        
+        if (categoryFilter !== "all") {
+          const categoriaId = parseInt(categoryFilter);
+          if (!isNaN(categoriaId)) {
+            params.categoria = categoriaId;
+          }
+        }
+
+        // Filtro de tiempo (futuros, pasados, todos)
+        if (timeFilter === "future") {
+          params.fecha_fin__gt = ahora;  // Solo eventos futuros
+        } else if (timeFilter === "past") {
+          params.fecha_fin__lte = ahora;  // Solo eventos pasados
+        }
+        // Si timeFilter === "all", no agregamos filtro de fecha
+
+        // Filtro de fecha específica (si está seleccionada)
+        if (dateFilter) {
+          // Convertir fecha del input (YYYY-MM-DD) a formato ISO para comparar
+          const fechaInicio = new Date(dateFilter + "T00:00:00");
+          const fechaFin = new Date(dateFilter + "T23:59:59");
+          params.fecha_inicio__gte = fechaInicio.toISOString();
+          params.fecha_inicio__lte = fechaFin.toISOString();
+        }
+
+        // Filtro de inscripción (aplicado en el backend)
+        if (subscriptionFilter === "subscribed") {
+          params.inscrito = "true";  // Solo eventos donde el usuario está inscrito
+        } else if (subscriptionFilter === "not_subscribed") {
+          params.inscrito = "false";  // Solo eventos donde el usuario NO está inscrito
+        }
+        // Si subscriptionFilter === "all", no agregamos el parámetro
+
+        // Mover ordenamiento al backend
         if (sortBy === "date") {
-          const params: any = {
-            page_size: 1000, // Cargar una cantidad grande de eventos
-          };
-          
-          if (searchTerm) {
-            params.search = searchTerm;
-          }
-          
-          if (categoryFilter !== "all") {
-            const categoriaId = parseInt(categoryFilter);
-            if (!isNaN(categoriaId)) {
-              params.categoria = categoriaId;
-            }
-          }
+          params.ordering = "-fecha_inicio";  // Más reciente primero
+        } else if (sortBy === "popular") {
+          // Para popular, necesitamos ordenar por número de inscritos
+          // Esto puede requerir un endpoint especial o usar un campo calculado
+          params.ordering = "-fecha_inicio";  // Por ahora, usar fecha como fallback
+        } else if (sortBy === "capacity") {
+          params.ordering = "-aforo";  // Mayor capacidad primero
+        }
 
-          const response = await getEventosRequest(params);
-          let eventosData = response.data.results || response.data;
-          eventosData = Array.isArray(eventosData) ? eventosData : [];
-          
-          // Si hay más páginas, cargarlas todas
-          let nextUrl = response.data.next;
-          while (nextUrl) {
-            try {
-              // Extraer solo el path de la URL (desde /api en adelante)
-              const urlObj = new URL(nextUrl, window.location.origin);
-              const path = urlObj.pathname + urlObj.search;
-              const nextResponse = await apiClient.get(path);
-              const nextData = nextResponse.data.results || nextResponse.data;
-              if (Array.isArray(nextData)) {
-                eventosData = [...eventosData, ...nextData];
-              }
-              nextUrl = nextResponse.data.next;
-            } catch (err) {
-              console.error('Error al cargar página adicional:', err);
-              break;
-            }
-          }
-          
-          setAllEventos(eventosData);
-        } else {
-          // Para otros ordenamientos, usar paginación normal del servidor
-          const params: any = {
-            page: page,
-            page_size: pageSize,
-          };
-          
-          if (searchTerm) {
-            params.search = searchTerm;
-          }
-          
-          if (categoryFilter !== "all") {
-            const categoriaId = parseInt(categoryFilter);
-            if (!isNaN(categoriaId)) {
-              params.categoria = categoriaId;
-            }
-          }
-
-          const response = await getEventosRequest(params);
-          const eventosData = response.data.results || response.data;
-          setEventos(Array.isArray(eventosData) ? eventosData : []);
-          setAllEventos([]); // Limpiar cuando no usamos ordenamiento por fecha
-          
-          // Manejar información de paginación
-          if (response.data.count !== undefined) {
-            setCount(response.data.count);
-            const calculatedTotalPages = Math.ceil(response.data.count / pageSize);
-            setTotalPages(calculatedTotalPages > 0 ? calculatedTotalPages : 1);
-          } else {
-            // Si no hay count, usar el número de eventos recibidos
-            const eventosCount = Array.isArray(eventosData) ? eventosData.length : 0;
-            setCount(eventosCount);
-            setTotalPages(1);
-          }
-          setHasNext(!!response.data.next);
-          setHasPrevious(!!response.data.previous);
+        const response = await getEventosRequest(params);
+        const eventosData = response.data.results || response.data;
+        setEventos(Array.isArray(eventosData) ? eventosData : []);
+        
+        // Manejar información de paginación
+        setHasNextPage(response.data.next !== null && response.data.next !== undefined);
+        setHasPreviousPage(response.data.previous !== null && response.data.previous !== undefined);
+        
+        if (response.data.count !== undefined) {
+          setTotalCount(response.data.count);
+          const pageSize = 9;
+          setTotalPages(Math.ceil(response.data.count / pageSize));
         }
       } catch (error) {
         console.error('Error al cargar eventos:', error);
         setEventos([]);
-        setAllEventos([]);
-        setCount(0);
         setTotalPages(1);
-        setHasNext(false);
-        setHasPrevious(false);
+        setHasNextPage(false);
+        setHasPreviousPage(false);
+        setTotalCount(0);
       } finally {
         setLoading(false);
       }
     };
 
     fetchEventos();
-  }, [searchTerm, categoryFilter, page, pageSize, sortBy]);
-
-  // Resetear página cuando cambian los filtros o el ordenamiento
-  useEffect(() => {
-    setPage(1);
-  }, [searchTerm, categoryFilter, sortBy, dateFilter, subscriptionFilter]);
+  }, [searchTerm, categoryFilter, dateFilter, timeFilter, subscriptionFilter, currentPage, sortBy]);
 
 
   const formatDate = (dateString: string) => {
@@ -280,113 +257,29 @@ const Search = () => {
     });
   };
 
-  // Usar allEventos cuando ordenamos por fecha, eventos en otros casos
-  const eventosToProcess = sortBy === "date" ? allEventos : eventos;
+  const filteredEvents = eventos.filter(evento => {
+    // Filtro por ubicación (aplicado en el frontend porque requiere todas las ubicaciones)
+    if (locationFilter !== "all" && evento.ubicacion !== locationFilter) {
+      return false;
+    }
 
-  const filteredEvents = useMemo(() => {
-    return eventosToProcess.filter(evento => {
-      // Filtro por fecha
-      if (dateFilter) {
-        const eventoDate = new Date(evento.fecha_inicio).toISOString().split('T')[0];
-        if (eventoDate !== dateFilter) {
-          return false;
-        }
-      }
-
-      // Filtro por inscripción (solo aplicar si las inscripciones ya se cargaron)
-      if (!loadingSubscriptions) {
-        // Asegurar que el ID del evento sea un número para la comparación
-        const eventoId = Number(evento.id);
-        
-        if (subscriptionFilter === "subscribed") {
-          // Solo eventos donde el usuario está inscrito
-          // Verificar que el ID del evento esté en el Set de eventos inscritos
-          if (!subscribedEventIds.has(eventoId)) {
-            return false;
-          }
-        } else if (subscriptionFilter === "not_subscribed") {
-          // Solo eventos donde el usuario NO está inscrito
-          // Verificar que el ID del evento NO esté en el Set de eventos inscritos
-          if (subscribedEventIds.has(eventoId)) {
-            return false;
-          }
-        }
-      }
-      // Si subscriptionFilter === "all", no filtrar por inscripción
-      // Si loadingSubscriptions === true, no filtrar por inscripción hasta que se carguen
-
-      return true;
-    });
-  }, [eventosToProcess, dateFilter, subscriptionFilter, loadingSubscriptions, subscribedEventIds]);
+    // El filtro de inscripción ahora se aplica en el backend, así que no necesitamos filtrarlo aquí
+    return true;
+  });
 
   // Ordenar eventos según el criterio seleccionado
-  const sortedEvents = useMemo(() => {
-    return [...filteredEvents].sort((a, b) => {
-      switch (sortBy) {
-        case "date":
-          // Primero eventos no finalizados (del más cercano al más lejano)
-          // Luego eventos finalizados (del más cercano al más antiguo)
-          const ahora = new Date().getTime();
-          const fechaFinA = new Date(a.fecha_fin).getTime();
-          const fechaFinB = new Date(b.fecha_fin).getTime();
-          const fechaInicioA = new Date(a.fecha_inicio).getTime();
-          const fechaInicioB = new Date(b.fecha_inicio).getTime();
-          
-          const aFinalizado = fechaFinA < ahora;
-          const bFinalizado = fechaFinB < ahora;
-          
-          // Si uno está finalizado y el otro no, el no finalizado va primero
-          if (aFinalizado && !bFinalizado) {
-            return 1; // b va primero (no finalizado)
-          }
-          if (!aFinalizado && bFinalizado) {
-            return -1; // a va primero (no finalizado)
-          }
-          
-          // Si ambos están en el mismo estado (finalizados o no finalizados)
-          if (!aFinalizado && !bFinalizado) {
-            // Ambos no finalizados: ordenar por fecha_inicio ascendente (más cercano primero)
-            return fechaInicioA - fechaInicioB;
-          } else {
-            // Ambos finalizados: ordenar por fecha_fin descendente (más cercano al más antiguo)
-            return fechaFinB - fechaFinA;
-          }
-        
-        case "popular":
-          // Más popular (más inscritos primero)
-          const inscritosA = a.numero_inscritos || 0;
-          const inscritosB = b.numero_inscritos || 0;
-          return inscritosB - inscritosA;
-        
-        case "capacity":
-          // Capacidad (mayor capacidad primero)
-          return b.aforo - a.aforo;
-        
-        default:
-          return 0;
-      }
-    });
-  }, [filteredEvents, sortBy]);
-
-  // Aplicar paginación del cliente cuando ordenamos por fecha
-  const paginatedEvents = useMemo(() => {
-    return sortBy === "date" 
-      ? sortedEvents.slice((page - 1) * pageSize, page * pageSize)
-      : sortedEvents;
-  }, [sortBy, sortedEvents, page, pageSize]);
+  // Nota: El ordenamiento básico (fecha, capacidad) ya se hace en el backend
+  // Solo aplicamos ordenamiento adicional para "popular" si es necesario
+  let sortedEvents = filteredEvents;
   
-  // Actualizar información de paginación cuando ordenamos por fecha (solo en cliente)
-  useEffect(() => {
-    if (sortBy === "date") {
-      const totalCount = sortedEvents.length;
-      setCount(totalCount);
-      const calculatedTotalPages = Math.ceil(totalCount / pageSize);
-      setTotalPages(calculatedTotalPages > 0 ? calculatedTotalPages : 1);
-      setHasNext(page < calculatedTotalPages);
-      setHasPrevious(page > 1);
-    }
-    // Cuando no ordenamos por fecha, la paginación viene del servidor en fetchEventos
-  }, [sortBy, sortedEvents, page, pageSize]);
+  if (sortBy === "popular") {
+    // Ordenar por número de inscritos (más popular primero)
+    sortedEvents = [...filteredEvents].sort((a, b) => {
+      const inscritosA = a.numero_inscritos || 0;
+      const inscritosB = b.numero_inscritos || 0;
+      return inscritosB - inscritosA;
+    });
+  }
 
   const categories = [
     { value: "all", label: "Todas las categorías" },
@@ -466,9 +359,9 @@ const Search = () => {
               </SelectContent>
             </Select>
 
-            <Select>
+            <Select value={locationFilter} onValueChange={setLocationFilter}>
               <SelectTrigger>
-                <SelectValue placeholder="Todas las ubicaciones" />
+                <SelectValue placeholder="Ubicación" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las ubicaciones</SelectItem>
@@ -481,6 +374,20 @@ const Search = () => {
             </Select>
           </div>
 
+          {/* Filtro adicional de tiempo */}
+          <div className="mt-4">
+            <Select value={timeFilter} onValueChange={setTimeFilter}>
+              <SelectTrigger className="w-full md:w-[300px]">
+                <SelectValue placeholder="Tiempo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="future">Eventos futuros</SelectItem>
+                <SelectItem value="all">Todos los eventos</SelectItem>
+                <SelectItem value="past">Eventos pasados</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex justify-end mt-4 gap-2">
             <Button
               variant="outline"
@@ -489,19 +396,11 @@ const Search = () => {
                 setCategoryFilter("all");
                 setDateFilter("");
                 setSubscriptionFilter("all");
-                setPage(1);
+                setLocationFilter("all");
+                setTimeFilter("future"); // Volver al valor por defecto
               }}
             >
               Limpiar filtros
-            </Button>
-            <Button 
-              className="gradient-primary text-white border-0"
-              onClick={() => {
-                toast.success("Filtros aplicados");
-              }}
-            >
-              <SearchIcon className="mr-2 h-4 w-4" />
-              Buscar
             </Button>
           </div>
         </div>
@@ -509,13 +408,10 @@ const Search = () => {
         <div>
           <div className="flex justify-between items-center mb-6">
             <p className="text-muted-foreground">
-              Mostrando <span className="font-bold text-foreground">
-                {sortBy === "date" 
-                  ? `${Math.min((page - 1) * pageSize + 1, count)}-${Math.min(page * pageSize, count)}`
-                  : paginatedEvents.length
-                }
-              </span> de{" "}
-              <span className="font-bold text-foreground">{count || totalEventos}</span> eventos
+              Mostrando <span className="font-bold text-foreground">{sortedEvents.length}</span> eventos
+              {totalCount > 0 && (
+                <span> de <span className="font-bold text-foreground">{totalCount}</span> totales</span>
+              )}
             </p>
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="w-48">
@@ -533,34 +429,78 @@ const Search = () => {
             <div className="text-center py-16">
               <p className="text-muted-foreground">Cargando eventos...</p>
             </div>
-          ) : paginatedEvents.length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {paginatedEvents.map((evento, index) => (
-                <div
-                  key={evento.id}
-                  className="animate-fade-in"
-                  style={{ animationDelay: `${index * 0.05}s` }}
+          ) : sortedEvents.length > 0 ? (
+            <>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {sortedEvents.map((evento, index) => (
+                  <div
+                    key={evento.id}
+                    className="animate-fade-in"
+                    style={{ animationDelay: `${index * 0.05}s` }}
+                  >
+                    <EventCard
+                      id={evento.id.toString()}
+                      title={evento.titulo}
+                      category={evento.categoria?.nombre || "Sin categoría"}
+                      date={formatDate(evento.fecha_inicio)}
+                      time={formatTime(evento.fecha_inicio)}
+                      location={evento.ubicacion}
+                      capacity={evento.aforo}
+                      registered={evento.numero_inscritos || 0}
+                      image={getImageUrl(evento.foto)}
+                      isFavorito={evento.is_favorito === true}
+                      organizadorId={evento.organizador?.id}
+                      descripcion={evento.descripcion}
+                      categoriaId={evento.categoria?.id}
+                      fechaInicio={evento.fecha_inicio}
+                      fechaFin={evento.fecha_fin}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Controles de Paginación */}
+              <div className="mt-12 flex items-center justify-center gap-4">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    if (hasPreviousPage) {
+                      setCurrentPage(prev => prev - 1);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  disabled={!hasPreviousPage}
+                  className="h-10 w-10"
                 >
-                  <EventCard
-                    id={evento.id.toString()}
-                    title={evento.titulo}
-                    category={evento.categoria?.nombre || "Sin categoría"}
-                    date={formatDate(evento.fecha_inicio)}
-                    time={formatTime(evento.fecha_inicio)}
-                    location={evento.ubicacion}
-                    capacity={evento.aforo}
-                    registered={evento.numero_inscritos || 0}
-                    image={getImageUrl(evento.foto)}
-                    isFavorito={evento.is_favorito === true}
-                    organizadorId={evento.organizador?.id}
-                    descripcion={evento.descripcion}
-                    categoriaId={evento.categoria?.id}
-                    fechaInicio={evento.fecha_inicio}
-                    fechaFin={evento.fecha_fin}
-                  />
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+                
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    Página
+                  </span>
+                  <span className="text-sm font-semibold">
+                    {currentPage} de {totalPages}
+                  </span>
                 </div>
-              ))}
-            </div>
+                
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    if (hasNextPage) {
+                      setCurrentPage(prev => prev + 1);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  disabled={!hasNextPage}
+                  className="h-10 w-10"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              </div>
+            </>
           ) : (
             <div className="text-center py-16">
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
@@ -578,7 +518,8 @@ const Search = () => {
                     setCategoryFilter("all");
                     setDateFilter("");
                     setSubscriptionFilter("all");
-                    setPage(1);
+                    setLocationFilter("all");
+                    setTimeFilter("future"); // Volver al valor por defecto
                   }}
                 >
                   Limpiar filtros
@@ -591,73 +532,6 @@ const Search = () => {
                   Crear primer evento
                 </Button>
               </div>
-            </div>
-          )}
-
-          {/* Paginación */}
-          {!loading && paginatedEvents.length > 0 && totalPages > 1 && (
-            <div className="mt-8 flex justify-center">
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() => {
-                        if (hasPrevious) {
-                          setPage(page - 1);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }
-                      }}
-                      className={!hasPrevious ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                  </PaginationItem>
-                  
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
-                    // Mostrar solo algunas páginas alrededor de la actual
-                    if (
-                      pageNum === 1 ||
-                      pageNum === totalPages ||
-                      (pageNum >= page - 2 && pageNum <= page + 2)
-                    ) {
-                      return (
-                        <PaginationItem key={pageNum}>
-                          <PaginationLink
-                            onClick={() => {
-                              setPage(pageNum);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            isActive={pageNum === page}
-                            className="cursor-pointer"
-                          >
-                            {pageNum}
-                          </PaginationLink>
-                        </PaginationItem>
-                      );
-                    } else if (
-                      pageNum === page - 3 ||
-                      pageNum === page + 3
-                    ) {
-                      return (
-                        <PaginationItem key={pageNum}>
-                          <PaginationEllipsis />
-                        </PaginationItem>
-                      );
-                    }
-                    return null;
-                  })}
-                  
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() => {
-                        if (hasNext) {
-                          setPage(page + 1);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }
-                      }}
-                      className={!hasNext ? "pointer-events-none opacity-50" : "cursor-pointer"}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
             </div>
           )}
         </div>

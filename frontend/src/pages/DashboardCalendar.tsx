@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Sidebar from "@/components/layout/Sidebar";
@@ -44,6 +44,10 @@ const DashboardCalendar = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [eventos, setEventos] = useState<EventoBackend[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Estados para paginación de próximos eventos
+  const [proximosEventosPage, setProximosEventosPage] = useState(1);
+  const eventosPorPagina = 3; // Mostrar 3 eventos por página
 
   // Funciones helper para formatear datos
   const formatDateToCompare = (dateString: string) => {
@@ -145,14 +149,40 @@ const DashboardCalendar = () => {
     return { daysInMonth, startingDayOfWeek, year, month };
   };
 
-  // Cargar eventos del backend
+  // Cargar eventos del backend (todas las páginas)
   useEffect(() => {
     const fetchEventos = async () => {
       try {
         setLoading(true);
-        const response = await getEventosRequest();
-        const eventosData = response.data.results || response.data;
-        setEventos(Array.isArray(eventosData) ? eventosData : []);
+        let allEventos: EventoBackend[] = [];
+        let nextUrl: string | null = null;
+        let page = 1;
+
+        // Obtener primera página
+        const firstResponse = await getEventosRequest();
+        const firstPageData = firstResponse.data.results || firstResponse.data;
+        if (Array.isArray(firstPageData)) {
+          allEventos = [...allEventos, ...firstPageData];
+        }
+        nextUrl = firstResponse.data.next;
+
+        // Obtener todas las páginas restantes
+        while (nextUrl) {
+          try {
+            page++;
+            const response = await getEventosRequest({ page });
+            const pageData = response.data.results || response.data;
+            if (Array.isArray(pageData)) {
+              allEventos = [...allEventos, ...pageData];
+            }
+            nextUrl = response.data.next;
+          } catch (pageError) {
+            // Si hay error en una página, continuar con las demás
+            break;
+          }
+        }
+        
+        setEventos(allEventos);
       } catch (error) {
         console.error('Error al cargar eventos:', error);
         setEventos([]);
@@ -184,6 +214,57 @@ const DashboardCalendar = () => {
 
   const nextMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+  };
+
+  // Calcular eventos futuros y aplicar paginación
+  const eventosFuturos = useMemo(() => {
+    const ahora = new Date();
+    return eventos
+      .filter(evento => {
+        if (!evento.fecha_fin) {
+          return false;
+        }
+        const fechaFin = new Date(evento.fecha_fin);
+        return fechaFin > ahora;
+      })
+      .sort((a, b) => {
+        const fechaA = new Date(a.fecha_inicio).getTime();
+        const fechaB = new Date(b.fecha_inicio).getTime();
+        return fechaA - fechaB;
+      });
+  }, [eventos]);
+
+  // Calcular total de páginas
+  const totalPagesProximos = Math.ceil(eventosFuturos.length / eventosPorPagina);
+
+  // Obtener eventos de la página actual
+  const eventosFuturosPaginados = useMemo(() => {
+    const inicio = (proximosEventosPage - 1) * eventosPorPagina;
+    const fin = inicio + eventosPorPagina;
+    return eventosFuturos.slice(inicio, fin);
+  }, [eventosFuturos, proximosEventosPage, eventosPorPagina]);
+
+  // Funciones para navegar entre páginas
+  const goToNextPageProximos = () => {
+    if (proximosEventosPage < totalPagesProximos) {
+      setProximosEventosPage(prev => prev + 1);
+      // Scroll suave hacia la sección de próximos eventos
+      const proximosSection = document.getElementById('proximos-eventos-section');
+      if (proximosSection) {
+        proximosSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
+  const goToPreviousPageProximos = () => {
+    if (proximosEventosPage > 1) {
+      setProximosEventosPage(prev => prev - 1);
+      // Scroll suave hacia la sección de próximos eventos
+      const proximosSection = document.getElementById('proximos-eventos-section');
+      if (proximosSection) {
+        proximosSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
   };
 
   return (
@@ -304,19 +385,23 @@ const DashboardCalendar = () => {
         </Card>
 
         {/* Próximos eventos */}
-        <div className="mt-12">
-          <h2 className="text-3xl font-bold mb-6">Próximos eventos</h2>
+        <div id="proximos-eventos-section" className="mt-12">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-3xl font-bold">Próximos eventos</h2>
+            {!loading && eventosFuturos.length > 0 && (
+              <p className="text-muted-foreground">
+                Mostrando {eventosFuturosPaginados.length} de {eventosFuturos.length} eventos
+              </p>
+            )}
+          </div>
           {loading ? (
             <div className="text-center py-8">
               <p className="text-muted-foreground">Cargando eventos...</p>
             </div>
-          ) : eventos.length > 0 ? (
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {eventos
-                .filter(evento => new Date(evento.fecha_inicio) >= new Date())
-                .sort((a, b) => new Date(a.fecha_inicio).getTime() - new Date(b.fecha_inicio).getTime())
-                .slice(0, 6)
-                .map((evento) => (
+          ) : eventosFuturos.length > 0 ? (
+            <>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {eventosFuturosPaginados.map((evento) => (
                   <Card
                     key={evento.id}
                     className="hover:shadow-soft transition-base cursor-pointer"
@@ -344,10 +429,45 @@ const DashboardCalendar = () => {
                     </CardContent>
                   </Card>
                 ))}
-            </div>
+              </div>
+
+              {/* Controles de Paginación */}
+              {eventosFuturos.length > eventosPorPagina && (
+                <div className="mt-12 flex items-center justify-center gap-4">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={goToPreviousPageProximos}
+                    disabled={proximosEventosPage === 1}
+                    className="h-10 w-10"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      Página
+                    </span>
+                    <span className="text-sm font-semibold">
+                      {proximosEventosPage} de {totalPagesProximos}
+                    </span>
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={goToNextPageProximos}
+                    disabled={proximosEventosPage === totalPagesProximos}
+                    className="h-10 w-10"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">No hay eventos disponibles</p>
+              <p className="text-muted-foreground">No hay eventos próximos disponibles</p>
             </div>
           )}
         </div>
