@@ -28,14 +28,6 @@ interface Usuario {
  * @param options - Opciones para configurar el comportamiento del hook
  * @returns Objeto con datos del usuario, estado de carga, error y función de refetch
  */
-// Función helper para verificar si hay un token de refresh en las cookies
-const hasRefreshToken = (): boolean => {
-  if (typeof document === 'undefined') return false;
-  return document.cookie
-    .split('; ')
-    .some(row => row.startsWith('refresh='));
-};
-
 export const useCurrentUser = (options?: {
   enabled?: boolean;
   staleTime?: number; // Tiempo en ms antes de considerar los datos "stale"
@@ -51,13 +43,6 @@ export const useCurrentUser = (options?: {
   } = useQuery<Usuario | null>({
     queryKey: ["currentUser"],
     queryFn: async () => {
-      // Verificar si hay token dentro de queryFn para que sea reactivo
-      // Si no hay token, retornar null directamente sin hacer la llamada HTTP
-      // Esto evita completamente el error 401 en la consola del navegador
-      if (!hasRefreshToken()) {
-        return null;
-      }
-      
       try {
         const response = await getCurrentUserRequest();
         return response.data;

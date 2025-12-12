@@ -2,7 +2,7 @@ import { useParams, Link, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star, Download, Share2, Mail, CalendarPlus } from "lucide-react";
+import { Calendar, MapPin, Users, ArrowLeft, CheckCircle2, Loader2, Key, Star, Download, Share2, Mail } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -29,7 +29,6 @@ import { getEventReviewsRequest } from "@/api/reviews";
 import ReviewCard from "@/components/events/ReviewCard";
 import { useQuery } from "@tanstack/react-query";
 import jsPDF from "jspdf";
-import { generateGoogleCalendarLink } from "@/utils/googleCalendar";
 
 
 // Interface para los datos del backend
@@ -90,11 +89,11 @@ const EventDetail = () => {
   // Usar el hook personalizado que cachea la información del usuario
   const isFromDashboard = location.pathname.startsWith('/dashboard');
   const { user: currentUser } = useCurrentUser({
-    enabled: isFromDashboard, // Solo cargar si estamos en el dashboard
+    enabled: true, // Necesario en todas las vistas para conocer al usuario
   });
   
-  // El usuario efectivo solo se usa si estamos en el dashboard
-  const effectiveCurrentUser = isFromDashboard ? currentUser : null;
+  // Usar el usuario actual si está disponible (tanto en dashboard como en páginas públicas)
+  const effectiveCurrentUser = currentUser;
   
   const [codigoConfirmacion, setCodigoConfirmacion] = useState("");
   const [isConfirming, setIsConfirming] = useState(false); 
@@ -104,7 +103,6 @@ const EventDetail = () => {
   const [messageSubject, setMessageSubject] = useState("");
   const [messageContent, setMessageContent] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-
   // Memoizar handlers para evitar re-renderizados innecesarios del Dialog
   const handleSubjectChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation();
@@ -1006,28 +1004,6 @@ const EventDetail = () => {
                     Desinscribirse
                   </Button>
                 )}
-                
-                {/* Botón para añadir a Google Calendar */}
-                <Button
-                  asChild
-                  className="w-full mt-2"
-                  variant="outline"
-                >
-                  <a
-                    href={generateGoogleCalendarLink({
-                      title: evento.titulo,
-                      description: evento.descripcion || '',
-                      location: evento.ubicacion,
-                      startDate: evento.fecha_inicio,
-                      endDate: evento.fecha_fin,
-                    })}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <CalendarPlus className="mr-2 h-4 w-4" />
-                    Añadir a Google Calendar
-                  </a>
-                </Button>
               </div>
 
               <div className="pt-4 border-t">
