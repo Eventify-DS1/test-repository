@@ -25,7 +25,7 @@ DEBUG = env.bool('DEBUG', default=False)
 
 ALLOWED_HOSTS = [
     'test-repository-production-b71d.up.railway.app',
-    'main-eventify.vercel.app', # Agregado tu dominio de Vercel
+    'main-eventify.vercel.app',
     'localhost',
     '127.0.0.1',
     '.railway.app',
@@ -78,7 +78,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    # 'whitenoise.middleware.WhiteNoiseMiddleware', <--- COMENTADO PARA EVITAR ERROR 502 SI NO ESTÁ INSTALADO
+    # 'whitenoise.middleware.WhiteNoiseMiddleware', # Mantener comentado si no lo usas para evitar error 502
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -136,15 +136,14 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # ============================================
-# CORS & CSRF (AQUÍ ESTÁ LA SOLUCIÓN)
+# CORS & CSRF (Configuración Cross-Site)
 # ============================================
 
 CORS_ALLOW_ALL_ORIGINS = False
 
-# Agregamos Vercel a la lista de orígenes permitidos
 CORS_ALLOWED_ORIGINS = [
     "https://test-repository-production-b71d.up.railway.app",
-    "https://main-eventify.vercel.app", # <--- ESTO FALTABA
+    "https://main-eventify.vercel.app",
     "http://localhost:5173",
     "http://localhost:3000",
 ]
@@ -164,20 +163,32 @@ CORS_ALLOW_HEADERS = [
 ]
 CORS_EXPOSE_HEADERS = ['Set-Cookie']
 
-# Agregamos Vercel a los orígenes de confianza CSRF
 CSRF_TRUSTED_ORIGINS = [
     "https://test-repository-production-b71d.up.railway.app",
-    "https://main-eventify.vercel.app", # <--- ESTO FALTABA
+    "https://main-eventify.vercel.app",
     "http://localhost:5173",
     "http://localhost:3000",
 ]
 
+# ============================================
+# COOKIES (SOLUCIÓN AL ERROR 401)
+# ============================================
+
 CSRF_COOKIE_NAME = 'csrftoken'
 CSRF_USE_SESSIONS = False
 CSRF_COOKIE_AGE = None
+
+# IMPORTANTE: HttpOnly False para el token CSRF para que el Frontend pueda leerlo y enviarlo en el header
 CSRF_COOKIE_HTTPONLY = False 
-CSRF_COOKIE_SAMESITE = 'Lax' # 'None' si falla con Chrome (requiere Secure=True)
-SESSION_COOKIE_SAMESITE = 'Lax'
+# IMPORTANTE: HttpOnly True para la Session ID (seguridad)
+SESSION_COOKIE_HTTPONLY = True
+
+# CONFIGURACIÓN CRÍTICA PARA VERCEL <-> RAILWAY
+# Al ser dominios distintos, necesitamos SameSite='None' y Secure=True
+SESSION_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 # ============================================
 # REST FRAMEWORK & SECURITY
@@ -263,10 +274,9 @@ CHANNEL_LAYERS = {
     }
 }
 
+# Configuración de Proxy SSL para Railway (Obligatorio)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=not DEBUG)
-SESSION_COOKIE_SECURE = env.bool('SESSION_COOKIE_SECURE', default=not DEBUG)
-CSRF_COOKIE_SECURE = env.bool('CSRF_COOKIE_SECURE', default=not DEBUG)
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True) # Forzamos True en producción
 
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
@@ -276,7 +286,6 @@ SECURE_BROWSER_XSS_FILTER = True
 X_FRAME_OPTIONS = 'DENY'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-SESSION_COOKIE_HTTPONLY = True 
 SESSION_COOKIE_AGE = 7200
 SESSION_SAVE_EVERY_REQUEST = False
 
