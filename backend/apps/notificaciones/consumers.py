@@ -121,24 +121,15 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         """
         Valida el token JWT y retorna el usuario asociado.
         """
-            if not token:
-                print("❌ [get_user_from_token] Token no encontrado en cookies")
-                return None
+        if not token:
+            print("❌ [get_user_from_token] Token no encontrado en cookies")
+            return None
 
-            print(f"🧐 [get_user_from_token] Validando token. Tipo: {type(token)}")
-
-            # Asegurar que el token saa compatible (algunas versiones de JWT piden bytes)
-            # Pero normalmente SimpleJWT maneja strings.
-            try:
-                UntypedToken(token)
-            except Exception as e:
-                # Si falla, intentar encodeo a bytes por si acaso
-                print(f"⚠️ Falló validación inicial: {e}. Intentando con bytes...")
-                if isinstance(token, str):
-                    UntypedToken(token.encode('utf-8'))
+        try:
+            # Validar el token
+            UntypedToken(token)
             
-            # Decodificar para obtener ID
-            # Usar jwt.decode directamente puede ser redundante pero seguro
+            # Decodificar el token para obtener el user_id
             decoded_data = jwt_decode(
                 token,
                 settings.SECRET_KEY,
