@@ -184,10 +184,18 @@ else:
     # Usar Cloudinary como storage backend
     DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
     
-    # URL base para archivos multimedia en Cloudinary
-    MEDIA_URL = f'https://res.cloudinary.com/{CLOUDINARY_STORAGE["CLOUD_NAME"]}/'
-    print(f"   - MEDIA_URL: {MEDIA_URL}")
+    # NO es necesario configurar MEDIA_URL manualmente - cloudinary_storage lo hace
+    # La URL se construirá automáticamente como:
+    # https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{path}
+    
     print(f"   - DEFAULT_FILE_STORAGE: {DEFAULT_FILE_STORAGE}")
+    
+    # Verificar que cloudinary_storage esté importado correctamente
+    try:
+        from cloudinary_storage.storage import MediaCloudinaryStorage
+        print(f"   ✅ cloudinary_storage importado correctamente")
+    except ImportError as e:
+        print(f"   ❌ Error importando cloudinary_storage: {e}")
 
 # ============================================
 # CORS & CSRF (Configuración Cross-Site)
