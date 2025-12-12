@@ -12,20 +12,20 @@ export default defineConfig(({ mode }) => ({
       '/api': {
         // En Docker, usar el nombre del servicio 'backend'
         // En desarrollo local, usar 'localhost'
-        target: process.env.VITE_API_TARGET || 'http://localhost:8000',
+        target: process.env.VITE_API_TARGET || 'https://test-repository-production-b71d.up.railway.app',
         changeOrigin: true,
         secure: false,
       },
       '/ws': {
         // Proxy para WebSocket
-        target: process.env.VITE_API_TARGET || 'http://localhost:8000',
+        target: process.env.VITE_API_TARGET || 'https://test-repository-production-b71d.up.railway.app',
         ws: true,
         changeOrigin: true,
         secure: false,
       },
       '/media': {
         // Proxy para archivos multimedia (imágenes, etc.)
-        target: process.env.VITE_API_TARGET || 'http://localhost:8000',
+        target: process.env.VITE_API_TARGET || 'https://test-repository-production-b71d.up.railway.app',
         changeOrigin: true,
         secure: false,
       }
