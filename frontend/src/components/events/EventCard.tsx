@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Calendar, MapPin, Users, CheckCircle2, Loader2, Copy, Star } from "lucide-react";
+import { Calendar, MapPin, Users, CheckCircle2, Loader2, Copy, Star, CalendarPlus } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import eventPlaceholder from "@/assets/event-placeholder.jpg";
+import { generateGoogleCalendarLink } from "@/utils/googleCalendar";
 import { 
   checkInscriptionRequest, 
   subscribeToEventRequest, 
@@ -446,6 +447,31 @@ const EventCard = ({
         <Button asChild className="w-full" variant="outline">
           <Link to={detailRoute}>Ver detalles</Link>
         </Button>
+        
+        {/* Botón para añadir a Google Calendar */}
+        {fechaInicio && fechaFin && (
+          <Button
+            asChild
+            className="w-full"
+            variant="outline"
+          >
+            <a
+              href={generateGoogleCalendarLink({
+                title,
+                description: descripcion || '',
+                location: location,
+                startDate: fechaInicio,
+                endDate: fechaFin,
+              })}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <CalendarPlus className="mr-2 h-4 w-4" />
+              Añadir a Google Calendar
+            </a>
+          </Button>
+        )}
         
         {/* Botón para usar como plantilla (solo si el usuario es el organizador) */}
         {isOwner && isAuthenticated && (
