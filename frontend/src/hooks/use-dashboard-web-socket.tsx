@@ -54,12 +54,19 @@ export const useDashboardWebSocket = () => {
                 return `${wsProtocol}//${wsHost}/ws/notifications/`;
             };
             
-            const wsUrl = getWebSocketUrl();
+            let wsUrl = getWebSocketUrl();
             
-            // 4. Crear la conexión WebSocket
+            // 4. Añadir token de acceso como query parameter (WebSocket no soporta headers)
+            const accessToken = localStorage.getItem('access_token');
+            if (accessToken) {
+                const separator = wsUrl.includes('?') ? '&' : '?';
+                wsUrl = `${wsUrl}${separator}token=${accessToken}`;
+            }
+            
+            // 5. Crear la conexión WebSocket
             const ws = new WebSocket(wsUrl);
             
-            // 5. Guardar la referencia
+            // 6. Guardar la referencia
             wsRef.current = ws;
             
             // Event: Conexión exitosa

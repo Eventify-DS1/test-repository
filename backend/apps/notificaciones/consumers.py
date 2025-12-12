@@ -22,14 +22,25 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         """
         Conecta al usuario autenticado a su grupo personal de notificaciones.
         El JWT puede venir en:
-        - Query string: ?token=xxx
-        - Cookies: access cookie
+        - Query string: ?token=xxx (localStorage)
+        - Cookies: access cookie (fallback)
         """
         self.user = None
         self.group_name = None
         
-        cookies = self.scope.get('cookies', {})
-        token = cookies.get('access')
+        # Intentar obtener token del query string primero (localStorage)
+        query_string = self.scope.get('query_string', b'').decode()
+        token = None
+        
+        if query_string:
+            from urllib.parse import parse_qs
+            params = parse_qs(query_string)
+            token = params.get('token', [None])[0]
+        
+        # Fallback a cookies si no está en query string
+        if not token:
+            cookies = self.scope.get('cookies', {})
+            token = cookies.get('access')
 
         try:
             user = await self.get_user_from_token(token)

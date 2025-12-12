@@ -262,13 +262,24 @@ class CookieTokenRefreshView(TokenRefreshView):
         return response
 
 class CookieTokenVerifyView(TokenVerifyView):
-    """Verifica el token access desde la cookie."""
+    """Verifica el token access desde el header Authorization o cookie (fallback)."""
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        token = request.COOKIES.get('access')
+        # Intentar obtener token del header Authorization primero
+        auth_header = request.headers.get('Authorization', '')
+        token = None
+        
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+        
+        # Fallback a cookies si no está en header
+        if not token:
+            token = request.COOKIES.get('access')
+        
         if not token:
             return Response({"error": "No access token found"}, status=status.HTTP_401_UNAUTHORIZED)
+        
         request.data['token'] = token
         return super().post(request, *args, **kwargs)
 
