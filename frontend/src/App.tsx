@@ -42,7 +42,6 @@ const App = () => {
           <Route path="/event/:id" element={<EventDetail />} />
           <Route path="/user/:id" element={<PublicProfile />} />
           <Route path="/dashboard/user/:id" element={<PublicProfile />} />
-          <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/dashboard/search" element={<Search />} />
           <Route path="/dashboard/calendario" element={<DashboardCalendar />} />
@@ -52,7 +51,6 @@ const App = () => {
             <Route path="/dashboard/notifications" element={<Notifications />} />
             <Route path="/dashboard/mis-eventos" element={<MisEventos />} />
             <Route path="/dashboard/reports" element={<Reports />} />
-          </Route>
           <Route path="/register" element={<RegisterPage />}/>
           <Route path="/login" element={<LoginPage />}/>
           <Route path="/dashboard/confirmar-asistencia" element={<ConfirmAttendance />} />

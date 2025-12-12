@@ -4,12 +4,10 @@ import FloatingNotificationButton from '@/components/notifications/FloatingNotif
 
 const DashboardLayout = () => {
     return (
-        <DashboardWebSocketProvider>
+        
             {/* Outlet renderiza las rutas hijas del dashboard */}
-            <Outlet />
-            {/* Botón flotante de notificaciones visible en todo el dashboard */}
-            <FloatingNotificationButton />
-        </DashboardWebSocketProvider>
+           
+        
     );
 };
 
