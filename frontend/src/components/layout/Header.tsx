@@ -1,34 +1,61 @@
 import { Button } from "@/components/ui/button";
-import { Link, useLocation } from "react-router-dom";
-import { Calendar, Search } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { logoutRequest } from "@/api/auth";
+import { useQueryClient } from "@tanstack/react-query";
+import { LogOut, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 const Header = () => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  // Usar el hook optimizado con caché extendido para evitar recargas innecesarias
+  const { user, isLoading, isAuthenticated } = useCurrentUser({
+    staleTime: 5 * 60 * 1000, // 5 minutos - los datos se consideran frescos por 5 minutos
+    cacheTime: 10 * 60 * 1000, // 10 minutos - los datos permanecen en caché por 10 minutos
+  });
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const navLinks = [
     { to: "/", label: "Inicio" },
     { to: "/calendario", label: "Calendario" },
     { to: "/eventos", label: "Eventos disponibles" },
   ];
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logoutRequest();
+      // Limpiar el caché del usuario al cerrar sesión
+      queryClient.setQueryData(["currentUser"], null); // Establecer explícitamente como null (no autenticado)
+      queryClient.invalidateQueries({ queryKey: ["currentUser"] }); // Invalidar para forzar actualización
+      toast.success("Sesión cerrada correctamente");
+      navigate("/");
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+      toast.error("No se pudo cerrar la sesión");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
   
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
-            <Calendar className="h-6 w-6 text-white" />
-          </div>
-          <span className="text-2xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Eventify
-          </span>
+      <div className="container flex h-16 items-center justify-between gap-4">
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-2 flex-shrink-0">
+          <img src="/branding/logo.png" alt="Eventify" className="h-10 w-auto" />
         </Link>
         
-        <nav className="hidden md:flex items-center gap-6">
+        {/* Navigation Links */}
+        <nav className="hidden md:flex items-center gap-6 flex-1 justify-center">
           {navLinks.map((link) => (
             <Link
               key={link.to}
               to={link.to}
-              className={`text-sm font-medium transition-colors hover:text-primary ${
+              className={`text-sm font-medium transition-colors hover:text-primary whitespace-nowrap ${
                 location.pathname === link.to
                   ? "text-primary"
                   : "text-foreground/70"
@@ -39,13 +66,44 @@ const Header = () => {
           ))}
         </nav>
         
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" asChild>
-            <Link to="/dashboard">Iniciar sesión</Link>
-          </Button>
-          <Button className="gradient-primary text-white border-0 hover:opacity-90" asChild>
-            <Link to="/dashboard">Registrarse</Link>
-          </Button>
+        {/* Auth Buttons */}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          ) : isAuthenticated && user ? (
+            <>
+              <Button variant="ghost" asChild className="hidden sm:flex">
+                <Link to="/dashboard">Ir al Dashboard</Link>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="border-destructive text-destructive hover:bg-destructive/10"
+              >
+                {isLoggingOut ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Cerrando...
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Cerrar sesión
+                  </>
+                )}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" asChild className="hidden sm:flex">
+                <Link to="/login">Iniciar sesión</Link>
+              </Button>
+              <Button className="gradient-primary text-white border-0 hover:opacity-90" asChild>
+                <Link to="/register">Registrarse</Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </header>

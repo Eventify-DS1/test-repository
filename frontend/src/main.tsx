@@ -1,5 +1,29 @@
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
-import "./index.css";
+import { BrowserRouter } from "react-router-dom";
+import "./styles/index.css";
+import { initCSRFToken } from "./utils/csrf";
 
-createRoot(document.getElementById("root")!).render(<App />);
+// Inicializar token CSRF al cargar la aplicación
+initCSRFToken();
+
+createRoot(document.getElementById("root")!).render(
+  <BrowserRouter
+    future={{
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    }}
+  >
+    <App />
+  </BrowserRouter>
+);
+
+// Ocultar el loader inicial cuando React esté listo
+setTimeout(() => {
+  const loader = document.getElementById('initial-loader');
+  if (loader) {
+    loader.classList.add('fade-out');
+    // Eliminar del DOM después de la animación
+    setTimeout(() => loader.remove(), 500);
+  }
+}, 800); // Mínimo 800ms para que se vea el loader

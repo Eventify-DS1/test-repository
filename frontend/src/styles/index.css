@@ -1,0 +1,270 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    /* Rosa vibrante y moderno como principal */
+    --primary: 340 82% 62%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 340 85% 58%;
+    --primary-light: 340 90% 75%;
+    --primary-glow: 340 100% 85%;
+
+    /* Fucsia/Magenta como secundario */
+    --secondary: 320 75% 60%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Naranja coral vibrante como acento */
+    --accent: 15 85% 65%;
+    --accent-foreground: 0 0% 100%;
+    
+    /* Amarillo cálido para highlights */
+    --highlight: 45 95% 60%;
+    --highlight-foreground: 0 0% 10%;
+
+    --muted: 340 15% 96%;
+    --muted-foreground: 340 10% 46%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 340 12% 92%;
+    --input: 340 12% 92%;
+    --ring: 340 82% 62%;
+
+    --radius: 1.2rem;
+    
+    /* Gradientes vibrantes y coloridos */
+    --gradient-primary: linear-gradient(135deg, hsl(340 82% 62%) 0%, hsl(320 75% 60%) 50%, hsl(15 85% 65%) 100%);
+    --gradient-secondary: linear-gradient(135deg, hsl(320 75% 60%) 0%, hsl(270 70% 65%) 100%);
+    --gradient-accent: linear-gradient(135deg, hsl(15 85% 65%) 0%, hsl(45 95% 60%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(340 100% 95%) 0%, hsl(320 100% 95%) 50%, hsl(15 100% 95%) 100%);
+    
+    /* Sombras con color */
+    --shadow-soft: 0 8px 30px hsla(340, 82%, 62%, 0.15);
+    --shadow-card: 0 4px 20px hsla(340, 82%, 62%, 0.1);
+    --shadow-glow: 0 0 40px hsla(340, 100%, 85%, 0.4);
+    
+    /* Transiciones suaves */
+    --transition-base: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 0 0% 10%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 12%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 340 82% 70%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 340 85% 75%;
+    --primary-light: 340 90% 80%;
+    --primary-glow: 340 100% 90%;
+
+    --secondary: 320 75% 68%;
+    --secondary-foreground: 0 0% 100%;
+
+    --accent: 15 85% 70%;
+    --accent-foreground: 0 0% 100%;
+    
+    --highlight: 45 95% 65%;
+    --highlight-foreground: 0 0% 10%;
+
+    --muted: 340 10% 17%;
+    --muted-foreground: 340 15% 65%;
+
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 340 10% 20%;
+    --input: 340 10% 20%;
+    --ring: 340 82% 70%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-poppins;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold;
+  }
+}
+
+@layer utilities {
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  
+  .gradient-secondary {
+    background: var(--gradient-secondary);
+  }
+  
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+  
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .transition-base {
+    transition: var(--transition-base);
+  }
+  
+  .transition-bounce {
+    transition: var(--transition-bounce);
+  }
+  
+  .hover-lift {
+    @apply transition-base hover:-translate-y-1 hover:shadow-soft;
+  }
+  
+  .hover-glow {
+    @apply transition-base hover:shadow-glow;
+  }
+  
+  /* Animaciones de scroll reveal */
+  .scroll-reveal {
+    opacity: 0;
+    transform: translateY(30px);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  }
+  
+  .scroll-reveal.revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  
+  .scroll-reveal-left {
+    opacity: 0;
+    transform: translateX(-50px);
+    transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+  }
+  
+  .scroll-reveal-left.revealed {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  
+  .scroll-reveal-right {
+    opacity: 0;
+    transform: translateX(50px);
+    transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+  }
+  
+  .scroll-reveal-right.revealed {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  
+  .scroll-reveal-scale {
+    opacity: 0;
+    transform: scale(0.9);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  }
+  
+  .scroll-reveal-scale.revealed {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Page loader */
+.page-loader-overlay {
+  position: fixed;
+  inset: 0;
+  background: hsla(var(--background) / 0.85);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  z-index: 9999;
+}
+
+/* Custom scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsla(var(--primary) / 0.3) transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsla(var(--primary) / 0.3);
+  border-radius: 10px;
+  transition: background 0.2s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsla(var(--primary) / 0.5);
+}
+
+
+

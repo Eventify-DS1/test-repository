@@ -1,43 +1,76 @@
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Clock, ArrowRight } from "lucide-react";
+import { Bell, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import NotificationCard from "@/components/notifications/NotificationCard";
+import { getAllNotificationsRequest } from "@/api/notifications";
+
+interface Notification {
+  id: number;
+  tipo: string;
+  mensaje: string;
+  evento_titulo?: string;
+  evento_id?: number;
+  fecha_envio: string;
+  leida: boolean;
+}
 
 const Notifications = () => {
-  const notifications = [
-    {
-      id: "1",
-      eventId: "1",
-      title: "Feria de Emprendimiento 2025",
-      date: "2025-03-15",
-      time: "14:00",
-      location: "Auditorio Principal",
-      daysUntil: 5,
-      type: "próximo",
-    },
-    {
-      id: "2",
-      eventId: "2",
-      title: "Torneo Relámpago de Fútbol",
-      date: "2025-03-20",
-      time: "09:00",
-      location: "Cancha de Fútbol",
-      daysUntil: 10,
-      type: "próximo",
-    },
-    {
-      id: "3",
-      eventId: "3",
-      title: "Noche de Teatro Universitario",
-      date: "2025-03-25",
-      time: "19:00",
-      location: "Teatro Universidad",
-      daysUntil: 15,
-      type: "próximo",
-    },
-  ];
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+
+  const fetchNotifications = async (pageNum: number = 1) => {
+    setLoading(true);
+    try {
+      const response = await getAllNotificationsRequest({
+        page: pageNum,
+        page_size: 20,
+        ordering: "-fecha_envio",
+      });
+      
+      // Manejar respuesta paginada
+      const data = response.data.results || response.data;
+      const notificationsList = Array.isArray(data) ? data : [];
+      
+      if (pageNum === 1) {
+        setNotifications(notificationsList);
+      } else {
+        setNotifications((prev) => [...prev, ...notificationsList]);
+      }
+      
+      // Verificar si hay más páginas
+      setHasMore(response.data.next ? true : false);
+    } catch (error) {
+      console.error("Error al obtener notificaciones:", error);
+      setNotifications([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications(1);
+  }, []);
+
+  const handleMarkAsRead = (id: number) => {
+    setNotifications((prev) =>
+      prev.map((notif) =>
+        notif.id === id ? { ...notif, leida: true } : notif
+      )
+    );
+  };
+
+  const handleLoadMore = () => {
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchNotifications(nextPage);
+  };
+
+  const unreadCount = notifications.filter((n) => !n.leida).length;
 
   return (
     <div className="flex min-h-screen w-full">
@@ -47,68 +80,24 @@ const Notifications = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Notificaciones</h1>
           <p className="text-muted-foreground">
-            Recordatorios de tus eventos próximos
+            {unreadCount > 0 
+              ? `${unreadCount} notificación${unreadCount > 1 ? 'es' : ''} sin leer`
+              : "Todas tus notificaciones"}
           </p>
         </div>
 
-        <div className="max-w-3xl space-y-4">
-          {notifications.map((notification) => (
-            <Card key={notification.id} className="shadow-card hover:shadow-soft transition-base">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
-                      <Badge
-                        variant="outline"
-                        className={
-                          notification.daysUntil <= 7
-                            ? "bg-primary/10 text-primary border-primary"
-                            : "bg-muted"
-                        }
-                      >
-                        {notification.daysUntil === 0
-                          ? "¡Hoy!"
-                          : notification.daysUntil === 1
-                          ? "Mañana"
-                          : `En ${notification.daysUntil} días`}
-                      </Badge>
-                    </div>
-
-                    <h3 className="text-xl font-semibold mb-3">
-                      {notification.title}
-                    </h3>
-
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-primary" />
-                        <span>{notification.date}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-primary" />
-                        <span>{notification.time}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-primary" />
-                        <span>{notification.location}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <Button asChild variant="outline" size="sm">
-                    <Link to={`/event/${notification.eventId}`}>
-                      Ver evento
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-
-          {notifications.length === 0 && (
+        <div className="max-w-4xl space-y-4">
+          {loading && notifications.length === 0 ? (
             <Card className="shadow-card">
               <CardContent className="p-12 text-center">
-                <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <Loader2 className="h-12 w-12 text-muted-foreground mx-auto mb-4 animate-spin" />
+                <p className="text-muted-foreground">Cargando notificaciones...</p>
+              </CardContent>
+            </Card>
+          ) : notifications.length === 0 ? (
+            <Card className="shadow-card">
+              <CardContent className="p-12 text-center">
+                <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
                 <h3 className="text-lg font-semibold mb-2">
                   No tienes notificaciones
                 </h3>
@@ -120,6 +109,35 @@ const Notifications = () => {
                 </Button>
               </CardContent>
             </Card>
+          ) : (
+            <>
+              {notifications.map((notification) => (
+                <NotificationCard
+                  key={notification.id}
+                  {...notification}
+                  onMarkAsRead={handleMarkAsRead}
+                />
+              ))}
+              
+              {hasMore && (
+                <div className="flex justify-center pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={handleLoadMore}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Cargando...
+                      </>
+                    ) : (
+                      "Cargar más notificaciones"
+                    )}
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>

@@ -1,40 +1,121 @@
 import Sidebar from "@/components/layout/Sidebar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Star, Calendar, MapPin } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Star, Calendar, MapPin, Loader2, Eye } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { getRateableEventsRequest } from "@/api/reviews";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+
+interface RateableEvent {
+  id: number;
+  titulo: string;
+  descripcion: string;
+  fecha_inicio: string;
+  fecha_fin: string;
+  ubicacion: string;
+  categoria: {
+    id: number;
+    nombre: string;
+  } | null;
+}
+
+// Componente para cada evento individual
+interface EventRatingCardProps {
+  event: RateableEvent;
+}
+
+const EventRatingCard = ({ event }: EventRatingCardProps) => {
+  const navigate = useNavigate();
+
+  const formatDate = (dateString: string) => {
+    return format(new Date(dateString), "d 'de' MMMM, yyyy", { locale: es });
+  };
+
+  const handleViewDetails = () => {
+    navigate(`/dashboard/event/${event.id}`, { state: { fromRateEvents: true } });
+  };
+
+  const handleRateClick = () => {
+    navigate(`/dashboard/rate/${event.id}`, { state: { fromRateEvents: true } });
+  };
+
+  return (
+    <Card className="shadow-card">
+      <CardHeader>
+        <CardTitle className="text-xl mb-2">{event.titulo}</CardTitle>
+        <div className="flex gap-4 text-sm text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-primary" />
+            <span>{formatDate(event.fecha_fin)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-primary" />
+            <span>{event.ubicacion}</span>
+          </div>
+          {event.categoria && (
+            <Badge variant="outline" className="text-xs">
+              {event.categoria.nombre}
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardFooter className="flex gap-2">
+        <Button
+          variant="outline"
+          onClick={handleViewDetails}
+          className="flex-1"
+        >
+          <Eye className="mr-2 h-4 w-4" />
+          Ver detalles
+        </Button>
+        <Button
+          onClick={handleRateClick}
+          className="flex-1 gradient-primary text-white border-0"
+        >
+          <Star className="mr-2 h-4 w-4" />
+          Calificar
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
 
 const RateEvents = () => {
-  const [ratings, setRatings] = useState<{ [key: string]: number }>({});
-
-  const pastEvents = [
-    {
-      id: "5",
-      title: "Fiesta de Bienvenida",
-      date: "2025-03-10",
-      location: "Plaza Central",
+  // Obtener eventos calificables
+  const { data: events, isLoading, error } = useQuery({
+    queryKey: ['rateable-events'],
+    queryFn: async () => {
+      const response = await getRateableEventsRequest();
+      return response.data;
     },
-    {
-      id: "6",
-      title: "Conferencia de Tecnología",
-      date: "2025-03-05",
-      location: "Auditorio B",
-    },
-  ];
+  });
 
-  const handleStarClick = (eventId: string, rating: number) => {
-    setRatings((prev) => ({ ...prev, [eventId]: rating }));
-  };
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen w-full">
+        <Sidebar />
+        <main className="flex-1 p-8 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </main>
+      </div>
+    );
+  }
 
-  const handleSubmit = (eventId: string) => {
-    if (!ratings[eventId]) {
-      toast.error("Por favor selecciona una calificación");
-      return;
-    }
-    toast.success("¡Gracias por tu reseña!");
-  };
+  if (error) {
+    return (
+      <div className="flex min-h-screen w-full">
+        <Sidebar />
+        <main className="flex-1 p-8">
+          <div className="text-center">
+            <p className="text-destructive">Error al cargar eventos</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen w-full">
@@ -48,66 +129,15 @@ const RateEvents = () => {
           </p>
         </div>
 
-        <div className="max-w-3xl space-y-6">
-          {pastEvents.map((event) => (
-            <Card key={event.id} className="shadow-card">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>{event.title}</span>
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        onClick={() => handleStarClick(event.id, star)}
-                        className="focus:outline-none transition-base hover:scale-110"
-                      >
-                        <Star
-                          className={`h-6 w-6 ${
-                            ratings[event.id] >= star
-                              ? "fill-amber-500 text-amber-500"
-                              : "text-muted-foreground hover:text-amber-300"
-                          }`}
-                        />
-                      </button>
-                    ))}
-                  </div>
-                </CardTitle>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                <div className="flex gap-4 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-primary" />
-                    <span>{event.date}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <span>{event.location}</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">
-                    Cuéntanos sobre tu experiencia
-                  </label>
-                  <Textarea
-                    placeholder="Comparte tus comentarios sobre el evento..."
-                    rows={4}
-                    className="resize-none"
-                  />
-                </div>
-
-                <Button
-                  onClick={() => handleSubmit(event.id)}
-                  className="w-full gradient-primary text-white border-0"
-                >
-                  Enviar reseña
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-
-          {pastEvents.length === 0 && (
+        <div className="max-w-4xl space-y-6">
+          {events && events.length > 0 ? (
+            events.map((event: RateableEvent) => (
+              <EventRatingCard
+                key={event.id}
+                event={event}
+              />
+            ))
+          ) : (
             <Card className="shadow-card">
               <CardContent className="p-12 text-center">
                 <Star className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -115,7 +145,7 @@ const RateEvents = () => {
                   No tienes eventos para calificar
                 </h3>
                 <p className="text-muted-foreground">
-                  Los eventos aparecerán aquí después de que finalicen
+                  Los eventos aparecerán aquí después de que finalicen y hayas asistido
                 </p>
               </CardContent>
             </Card>
