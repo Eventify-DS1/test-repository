@@ -35,5 +35,14 @@ python manage.py migrate --noinput || {
 }
 
 echo "Migraciones completadas. Iniciando servicio..."
-exec "$@"
+
+# Si no se proporciona un comando, usar daphne con el puerto correcto
+if [ $# -eq 0 ]; then
+    # Asegurar que PORT tenga un valor
+    PORT=${PORT:-8000}
+    echo "Iniciando daphne en puerto $PORT..."
+    exec daphne -b 0.0.0.0 -p $PORT backend.asgi:application
+else
+    exec "$@"
+fi
 
